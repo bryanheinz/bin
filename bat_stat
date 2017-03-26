@@ -1,0 +1,66 @@
+#!/usr/bin/python
+import subprocess
+from sys import argv
+
+if '-h' in argv:
+    print("Help:")
+    print("\t-v for verbose output.")
+    exit(0)
+
+def termy(cmd):
+    out = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    output = out.stdout.readlines()
+    return(output)
+    
+def ioreg():
+    output = termy(['ioreg', '-l'])
+    
+    for line in output:
+        if "BatterySerialNumber" in line:
+            battery_serial_line = line
+        elif "LegacyBatteryInfo" in line:
+            battery_info_line = line
+        elif "DesignCapacity" in line:
+            battery_design_capacity_line = line
+        elif "IOPlatformSerialNumber" in line:
+            mac_serial_line = line
+    
+    battery_info = battery_info_line.split(',')
+    for line in battery_info:
+        if "Capacity" in line:
+            battery_capacity = line.split('=')[-1]
+            battery_capacity = battery_capacity.replace('}', '')
+        elif "Cycle Count" in line:
+            battery_cycle = line.split('=')[-1]
+            battery_cycle = battery_cycle.replace('}', '').strip()
+            
+    battery_serial = battery_serial_line.split('"')[-2]
+    battery_design_capacity = battery_design_capacity_line.split(' ')[-1].strip()
+    mac_serial = mac_serial_line.split('"')[-2]
+    
+    return(battery_serial, battery_cycle, battery_capacity, battery_design_capacity, mac_serial)
+            
+def system_profiler():
+    output = termy(['system_profiler', 'SPPowerDataType'])
+    for line in output:
+        if "Condition:" in line:
+            battery_condition = line
+    battery_condition = battery_condition.split(': ')[-1]
+    return(battery_condition.strip())
+    
+def capacity_percent(current_capacity, design_capacity):
+    return("{0:.2f}%".format(float(current_capacity) / float(design_capacity) * 100))
+
+
+bat_stats = ioreg()
+bat_health = capacity_percent(bat_stats[2], bat_stats[3])
+bat_condition = system_profiler()
+
+print("Mac:\t\t\t\t{0}".format(bat_stats[4]))
+print("Battery serial number:\t\t{0}".format(bat_stats[0]))
+print("Battery charge cycle count:\t{0}".format(bat_stats[1]))
+print("Battery health percentage:\t{0}".format(bat_health))
+print("Battery condition:\t\t{0}".format(bat_condition))
+if '-v' in argv:
+    print("Battery capacity:\t\t{0}".format(bat_stats[2]))
+    print("Battery design capacity:\t{0}".format(bat_stats[3]))

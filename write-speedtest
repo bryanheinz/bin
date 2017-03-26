@@ -1,0 +1,103 @@
+#!/usr/bin/env python
+import subprocess, os
+from decimal import *
+from sys import argv
+
+try:
+    switches = argv
+except ValueError:
+    switches = "none"
+
+if '-h' in switches or '--help' in switches:
+    print("")
+    print("Usage: write-speedtest [options]")
+    print("\t--raw prints the bytes per second")
+    print("\t--size [n] changes the file size in megabytes (default is 500MB)")
+    print("\t--path [s] sets the path to test the disk speed")
+    print("\t--tests [n] changes how many tests to run (default is 5 test files)")
+    print("")
+    exit(0)
+
+### varibles ###
+
+tests = 5
+file_size = 500
+
+# tests are how many test files get run
+# file_size is the size of eatch test file
+# file_size example, 50 = 50MB 500 = 500MB files
+
+################
+
+if "--size" in switches:
+    switch_index = switches.index('--size') + 1
+    file_size = int(switches[switch_index])
+    print("\nCreating " + str(file_size) + " MB files...")
+if "--tests" in switches:
+    switch_index = switches.index('--tests') + 1
+    tests = int(switches[switch_index])
+    print("Creating " + str(tests) + " test files...")
+if '--input' in switches:
+    switch_index = switches.index('--input') + 1
+    zero = switches[switch_index]
+    print("Using the input file: {0}".format(zero))
+
+count = 0
+times = []
+file_list = []
+speed_list = []
+
+if '--path' in switches:
+    switch_index = switches.index('--path') + 1
+    file_path = switches[switch_index]
+else:
+    file_path = raw_input('\nPlease specify a path> ').strip()
+
+if os.path.isdir(file_path) == True:
+    if file_path[-1] != "/":
+        file_path = file_path + "/"
+        print("")
+    elif file_path[-1] == "/":
+        print("")
+    else:
+        print("\nOh noes, / error.\n")
+else:
+    print("\nThe specified path doesn't appear to be a folder, exiting...")
+    exit(0)
+
+while count < tests:
+    file = file_path + "file" + str(count)
+    file_list.append(file + ".out")
+    cmd = ['dd', 'if=/dev/zero', 'of={0}.out'.format(file),
+        'bs=1000000', 'count={0}'.format(file_size)]
+    raw_output = subprocess.Popen(cmd, stderr=subprocess.PIPE)
+
+    output = raw_output.stderr.read().strip()
+    speed_string = output.split(" ")[-2].replace("(", "")
+    speed = (str(Decimal(speed_string)/1000/1000)) + " MB/s"
+    speed_list.append(speed)
+    if "--raw" in switches:
+        print(speed_string)
+    times.append(speed_string)
+    print(speed)
+    print("")
+
+    count += 1
+
+sum = 0
+for _ in times:
+    sum = sum + int(_)
+raw_average = sum/len(times)
+if raw_average < 1000000: # fixes the average from becoming 0MB
+    mb = int(raw_average)/125000
+    average_mb = "{0} Mb/s".format(str(mb))
+else:
+    mb = int(raw_average)/1000000
+    average_mb = "{0} MB/s".format(str(mb))
+
+if "--raw" in switches:
+    print("Average raw speed: " + str(raw_average))
+print("Average speed: " + average_mb)
+
+for _ in file_list:
+    os.unlink(_)

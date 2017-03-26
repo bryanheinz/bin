@@ -1,0 +1,15 @@
+#!/bin/bash
+
+appPath="$1" # assigns the installer app path to a variable
+esdPath=${appPath%%/}/Contents/SharedSupport/InstallESD.dmg # assigns the path to the InstallESD image
+systemPath="/Volumes/OS X Install ESD/BaseSystem.dmg"
+
+esdAttachOut=$(hdiutil attach -noverify -nobrowse "$esdPath") # mount the InstallESD image
+systemAttachOut=$(hdiutil attach -noverify -nobrowse "$systemPath") # mount the BaseSystem image
+
+cat /Volumes/OS\ X\ Base\ System/System/Library/CoreServices/SystemVersion.plist\
+    | awk 'f{print;f=0} /ProductVersion/{f=1}'\
+    | awk -F "[><]" '/string/{print $3}' # prints the app's os x version
+
+systemDetachOut=$(hdiutil detach /Volumes/OS\ X\ Base\ System/) # detach the BaseSystem image
+esdDetachOut=$(hdiutil detach /Volumes/OS\ X\ Install\ ESD/) # detach the InstallESD

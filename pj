@@ -1,0 +1,26 @@
+#!/usr/bin/python
+## a utility to pretty print json files
+
+import os
+import json
+from sys import argv
+from pprint import pprint
+
+def load_json(path):
+    file = open(path, 'r')
+    data = json.load(file)
+    file.close()
+    pprint(data)
+
+script, path = argv
+
+if '\\' in path:
+    print(path)
+    path.replace('\\', '')
+    print(path)
+
+if not os.path.isfile(path):
+    print("Please use a proper path, exiting...")
+    exit(1)
+else:
+    load_json(path)

@@ -1,0 +1,84 @@
+#!/usr/bin/env python
+import os
+import glob
+import subprocess
+from sys import argv
+
+try:
+    script, switch = argv
+except ValueError:
+    switch = "-h"
+
+proxy_on = """// proxy enabled
+user_pref("network.proxy.socks", '127.0.0.1');
+user_pref("network.proxy.socks_port", 4020);
+user_pref("network.proxy.socks_version", 4);
+user_pref("network.proxy.type", 1);
+user_pref("network.proxy.socks_remote_dns", true);"""
+
+proxy_off = """// proxy disabled
+user_pref("network.proxy.type", 5);
+user_pref("network.proxy.socks_version", 5);
+user_pref("network.proxy.socks_port", 0);
+user_pref("network.proxy.socks", "");
+user_pref("network.proxy.socks_remote_dns", false);"""
+
+def help_menu():
+    print("\tHelp menu:")
+    print("\t\t-h or --help to print this menu")
+    print("\t\t--on to enable the Firefox proxy")
+    print("\t\t--off to disable the Firefox proxy")
+
+def get_console_user():
+    cmd = 'stat -f "%Su" /dev/console'.split(' ')
+    output = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    user = output.stdout.read().strip()
+    return(user.replace('"', ''))
+
+def fire_prefs(preferences, settings):
+    for _ in preferences:
+        user_js = os.path.join(_, 'user.js')
+        file = open(user_js, 'w')
+        file.write(settings)
+        file.close()
+
+def fire_status(preferences):
+    status = []
+    for _ in preferences:
+        user_js = os.path.join(_, 'user.js')
+        if not os.path.isfile(user_js):
+            status.append("path null")
+            continue
+        file = open(user_js, 'r')
+        data = file.readlines()
+        file.close
+        status.append(data[0])
+    for _ in status:
+        if "disabled" in _:
+            print("\n\tThe Firefox proxy is disabled.\n")
+        elif "path null" in _:
+            print("\n\tThe Firefox proxy is disabled.\n")
+        elif "enabled" in _:
+            print("\n\tThe Firefox proxy is enabled.\n")
+
+
+
+user = get_console_user()
+preference_list =\
+    '/Users/{0}/Library/Application Support/Firefox/Profiles/*'.format(user)
+preferences = glob.glob(preference_list)
+
+
+if switch == "--on":
+    fire_prefs(preferences, proxy_on)
+    print("\n\tThe Firefox proxy has been enabled.\n")
+    print("\n\tStarting the proxy connection...\n")
+elif switch == "--off":
+    fire_prefs(preferences, proxy_off)
+    print("\n\tThe Firefox proxy has been disabled.\n")
+elif switch == "--status":
+    fire_status(preferences)
+elif switch == "-h" or switch == "--help":
+    help_menu()
+else:
+    help_menu()

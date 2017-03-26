@@ -1,0 +1,47 @@
+#!/usr/bin/env python
+import time
+import subprocess
+from sys import argv
+
+switches = argv
+
+def switch(item):
+    index = switches.index(item) + 1
+    return(switches[index])
+
+def h():
+    print("")
+    print("Requires nmap to be installed.")
+    print("Usage: host-check --port 22 --ip 127.0.0.1 --delay 30")
+    print("\t--port  [n]   specifies the port (e.g. 22)")
+    print("\t--ip    [ip]  specifies the IP address (e.g. 127.0.0.1)")
+    print("\t--dns   [dns] specifies the DNS name (e.g. google.com)")
+    print("\t--delay [5]   specifies the seconds between each check")
+    print("")
+    exit()
+
+if '-h' in switches or '--help' in switches or len(switches) < 5:
+    h()
+if '--port' in switches:
+    port = switch('--port')
+if '--ip' in switches:
+    address = switch('--ip')
+if '--dns' in switches:
+    address = switch('--dns')
+if '--delay' in switches:
+    delay = int(switch('--delay'))
+else:
+    delay = 5
+
+try:
+    cmd = ['nmap', '-Pn', '-p', port, address]
+except NameError:
+    pass
+
+while True:
+    try:
+        subprocess.call(cmd)
+        time.sleep(delay)
+    except KeyboardInterrupt:
+        break
+print("")

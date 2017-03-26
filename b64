@@ -1,0 +1,24 @@
+#!/usr/bin/python
+import base64 as b64
+from sys import argv
+
+def help():
+    print("This script will encode or decode base64 strings.")
+    print("Usage: b64 [option] [string]")
+    print("\t-e [string]")
+    print("\t-d [string]")
+
+def switch(item):
+    index = argv.index(item) + 1
+    return(argv[index])
+    
+if '-e' in argv:
+    # base64 encode
+    value = switch('-e')
+    print(b64.b64encode(value))
+elif '-d' in argv:
+    # base64 decode
+    value = switch('-d')
+    print(b64.b64decode(value))
+else:
+    help()
