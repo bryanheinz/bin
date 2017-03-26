@@ -6,8 +6,8 @@ b64 is used to encode or decode base64 strings.
 
 ```
 Usage: b64 [option] [string]
-	-e [string]
-	-d [string]
+    -e [string]
+    -d [string]
 ```
 
 ## bat\_stat
@@ -23,6 +23,13 @@ cl is used to open a URL in Chrome without Chrome's user interface.
 ## fire-proxy
 fire-proxy is used to enable or disable Firefox's proxy. It sets Firefox's proxy to 127.0.0.1 with the port 4020. I use this in conjunction with an SSH reverse proxy tunnel (`ssh -D 4020 user@host`).
 
+```
+Usage: fire-proxy [option]
+	--status to check if Firefox's proxy is enabled or not
+	--on     to enable Firefox's proxy (requires Firefox restart)
+	--off    to disable Firefox's proxy (requires Firefox restart)
+```
+
 ## get\_macos\_installer\_version
 get\_macos\_installer\_version is used to pull what version of macOS the installer will install. It's useful for when you have a macOS installer that you forgot to label with the version number.
 
@@ -33,10 +40,10 @@ host-check is used to watch a host's port. It's useful when rebooting a server o
 
 ```
 Usage: host-check --port 22 --ip 127.0.0.1 --delay 30
-	--port  [n]   specifies the port (e.g. 22)
-	--ip    [IP]  specifies the IP address (e.g. 127.0.0.1)
-	--dns   [DNS] specifies the DNS name (e.g. google.com)
-	--delay [n]   specifies the seconds between each check
+    --port  [n]   specifies the port (e.g. 22)
+    --ip    [IP]  specifies the IP address (e.g. 127.0.0.1)
+    --dns   [DNS] specifies the DNS name (e.g. google.com)
+    --delay [n]   specifies the seconds between each check
 ```
 
 ## pf
@@ -55,7 +62,7 @@ write-speedtest is used to get a rough estimate on the write speed to a target. 
 ```
 Usage: write-speedtest [options]
     --raw       prints the bytes per second
-	--size  [n] file size in megabytes (default is 500MB)
-	--path  [s] sets the path to test the disk speed
+    --size  [n] file size in megabytes (default is 500MB)
+    --path  [s] sets the path to test the disk speed
     --tests [n] how many test files to generate (default is 5)
 ```

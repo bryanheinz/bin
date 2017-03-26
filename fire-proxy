@@ -26,8 +26,9 @@ user_pref("network.proxy.socks_remote_dns", false);"""
 def help_menu():
     print("\tHelp menu:")
     print("\t\t-h or --help to print this menu")
-    print("\t\t--on to enable the Firefox proxy")
-    print("\t\t--off to disable the Firefox proxy")
+    print("\t\t--on to enable the Firefox proxy (requires Firefox restart)")
+    print("\t\t--off to disable the Firefox proxy (requires Firefox restart)")
+    print("\t\t--status to get if Firefox's proxy is enabled or not")
 
 def get_console_user():
     cmd = 'stat -f "%Su" /dev/console'.split(' ')
