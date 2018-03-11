@@ -9,23 +9,30 @@ host = "google.com"
 ps = 0 # total packets sent
 pr = 0 # total packets received
 
+cmd = '/usr/bin/stat -f "%Su" /dev/console'.split(' ')
+output = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+user = output.stdout.read().strip()
+user = user.replace('"', '')
+
+logging.basicConfig(filename='/Users/{0}/Library/Logs/ping_test.log'.format(user),\
+    level=logging.INFO,\
+    format='%(asctime)s - %(levelname)s -  %(message)s',\
+    datefmt='%Y-%m-%d %I:%M:%S %p')
+
 def switch(item):
     index = argv.index(item) + 1
     return(argv[index])
 
-logging.basicConfig(filename='~/Library/Logs/ping_test_log.log', level=logging.INFO,\
-            format='%(asctime)s - %(levelname)s -  %(message)s',\
-            datefmt='%Y-%m-%d %I:%M:%S %p')
 
 def core(pts, host):
     global ps
     global pr
     
     cmd = ["ping", "-c", pts, host]
-
+    
     task = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     out, err = task.communicate()
-
+    
     ping_results = out.split("\n")[-3:]
     
     try:
