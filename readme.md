@@ -13,7 +13,10 @@ Usage: b64 [option] [string]
 ## bat\_stat
 bat\_stat is used to display information about a Macs battery and a _rough_ estimate on battery life.
 
-`Usage: bat\_stat [-v]`
+`Usage: bat_stat [-v]`
+
+## cf
+cf is a script that will check your external IP and update the A record of a subdomain on Cloudflare with that IP. Update the script with your Cloudflare email, API key, domain, and subdomain.
 
 ## cl
 cl is used to open a URL in Chrome without Chrome's user interface.
