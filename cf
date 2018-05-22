@@ -1,0 +1,105 @@
+#!/usr/bin/python
+"""Update CloudFlare A records with external IP."""
+import json
+import urllib
+import httplib
+from pprint import pprint
+
+email = '' # cloudflare@example.com
+key = '' # API key from https://www.cloudflare.com/a/account/my-account found at the bottom of my settings
+zone = '' # example.com
+subdomain = '' # sub.example.com
+
+
+def api_call(params, path):
+    """Runs GET API commands on Cloudflare."""
+    params = urllib.urlencode(params)
+    headers = {
+        "Content-type":"application/json",
+        "X-Auth-Email":email,
+        "X-Auth-Key":key
+    }
+    conn = httplib.HTTPSConnection("api.cloudflare.com")
+    conn.request("GET", "/client/v4/{0}".format(path), params, headers)
+    response = conn.getresponse()
+    data = response.read().decode('utf-8')
+    json_data = json.loads(data)
+    return(json_data)
+
+def get_zone_id():
+    """Gets the ID of the subdomain."""
+    json_data = api_call({}, 'zones')
+    for _ in json_data['result']:
+        if _['name'] == zone:
+            return(_['id'])
+
+def get_subdomain_ip():
+    """Get subdomain's A record."""
+    zone_id = get_zone_id()
+    a_records = api_call(
+        {
+            'type':'A',
+        },
+        "zones/{0}/dns_records".format(zone_id)
+    )
+
+    for _ in a_records['result']:
+        if _['name'] == subdomain:
+            return(_['content'], _['id'])
+
+def get_home_ip():
+    """Checks ifconfig.co to get your external IP."""
+    req = httplib.HTTPConnection('ifconfig.co')
+    req.request('GET', '/json')
+    response = req.getresponse()
+    data = response.read().decode('utf-8')
+    return(json.loads(data)['ip'])
+
+def update_dns_record(home, sub_id):
+    """Update subdomain's A record with external IP address."""
+    params = json.dumps(
+        {
+            'type':'A',
+            'name':subdomain,
+            'content':home
+        }
+    )
+    headers = {
+        "Content-type":"application/json",
+        "X-Auth-Email":email,
+        "X-Auth-Key":key
+    }
+    conn = httplib.HTTPSConnection("api.cloudflare.com")
+    conn.request("PUT",
+        "/client/v4/zones/{0}/dns_records/{1}".format(get_zone_id(), sub_id),
+        params,
+        headers
+    )
+    response = conn.getresponse()
+    data = response.read().decode('utf-8')
+    json_data = json.loads(data)
+    print("")
+    print("updated IP.")
+    pprint(json_data)
+    print("")
+
+try:
+    home = get_home_ip()
+    sub, sub_id = get_subdomain_ip()
+except:
+    print("error trying to get home IP or domain information.")
+    exit(1)
+
+if home == sub:
+    # IPs are the same, exit.
+    exit(0)
+else:
+    try:
+        update_dns_record(home, sub_id)
+        exit(0)
+    except:
+        print("error updating the DNS records.")
+        exit(1)
+
+print("something went wrong and the script didn't exit until the end.")
+exit(1)
