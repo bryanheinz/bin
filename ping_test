@@ -23,6 +23,15 @@ def switch(item):
     index = argv.index(item) + 1
     return(argv[index])
 
+def helpr():
+    print("")
+    print("-h, --help\t\tprints this help menu")
+    print("-p, --packets [n]\thow many packets to send - 20 default")
+    print("-a, --addr [dns or ip]\taddress to send the packets - google.com default")
+    print("-l, --loop \t\tloops the pings until control-c")
+    print("")
+    exit(0)
+
 
 def core(pts, host):
     global ps
@@ -76,18 +85,21 @@ def core(pts, host):
     ps += int(pts)
     pr += int(packets_received)
 
-
+if "-h" in argv:
+    helpr()
+if "--help" in argv:
+    helpr()
 if "-p" in argv:
     pts = switch("-p")
 if "--packets" in argv:
     pts = switch("--packets")
-if "-h" in argv:
-    host = switch("-h")
-if "--host" in argv:
-    host = switch("--host")
+if "-a" in argv:
+    host = switch("-a")
+if "--addr" in argv:
+    host = switch("--addr")
 
 try:
-    if "--loop" in argv:
+    if "--loop" in argv or "-l" in argv:
         while True:
             core(pts, host)
     else:
