@@ -1,0 +1,25 @@
+#!/bin/bash
+# this script uses blueutil (https://github.com/toy/blueutil) to shut
+# Bluetooth off, wait 5 seconds, and turn it back on.
+
+bu="/usr/local/bin/blueutil"
+
+restartBluetooth() {
+	echo "Restarting Bluetooth..."
+	"$bu" -p 0
+	/bin/sleep 5
+	"$bu" -p 1
+	if [ $(blueutil -p) -eq 1 ]; then
+		echo "Bluetooth was restarted."
+	else
+		echo "Bluetooth didn't start back up."
+	fi
+}
+
+if [ -f "$bu" ]; then
+	restartBluetooth
+else
+	echo "blueutil isn't installed."
+	echo "please run `brew install blueutil`"
+	exit 0
+fi
