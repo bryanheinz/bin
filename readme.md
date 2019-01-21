@@ -16,9 +16,9 @@ bat\_stat is used to display information about a Macs battery and a _rough_ esti
 `Usage: bat_stat [-v]`
 
 ## bt\_restart
-bt\_restart is used to restart Bluetooth on macOS.
+bt\_restart is used to restart Bluetooth on macOS. bt\_restart uses the blueutil binary found [here](https://github.com/toy/blueutil).
 
-`Usage: bt\_restart`
+`Usage: bt_restart`
 
 ## cf
 cf is a script that will check your external IP and update the A record of a subdomain on Cloudflare with that IP. Update the script with your Cloudflare email, API key, domain, and subdomain.
