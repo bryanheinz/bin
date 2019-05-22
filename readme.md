@@ -54,6 +54,17 @@ Usage: host-check --port 22 --ip 127.0.0.1 --delay 30
     --delay [n]   specifies the seconds between each check
 ```
 
+## icp
+icp takes an ICNS file and converts it to a PNG. icp will save the PNG to the same directory the ICNS file is in with the .png extension.
+
+```
+Usage: icp [-f] [file path]
+Example: icp -f /Users/bryan/Desktop/1Password.icns
+Options:
+	-f	Skips ICNS file check and forces the conversion to PNG.
+	-h	Prints this help document.
+```
+
 ## pf
 pf is used to rename a script to postflight and make it executable. It's useful for updating a payload free package script.
 
