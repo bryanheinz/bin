@@ -75,6 +75,14 @@ pj is used to print a json file in a readable format.
 
 `Usage: pj [PATH]`
 
+## prosign
+prosign is a shortcut script to sign macOS configuration profiles. It requires you to have a developer account and you'll have to update the scripts dev\_ident variable with your developer certificate identity name that can be found in your Keychain.
+
+prosign will output a signed profile to the same directory as the input profile with "-signed" appended to it.
+
+```Usage: prosign [file path]
+Example: prosign /Users/bryan/Desktop/com.company.app.mobileconfig```
+
 ## write-speedtest
 write-speedtest is used to get a rough estimate on the write speed to a target. It's useful for getting a feel of how fast a local disk is or a mounted share.
 
