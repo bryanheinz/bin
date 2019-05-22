@@ -1,0 +1,51 @@
+#!/usr/bin/python
+import os
+import subprocess
+from sys import argv
+
+# set to your developer certificate name.
+# should be able to be found in your Keychain.
+dev_ident = '' # update me :D
+
+def print_help():
+    print("")
+    print("This utility signs macOS configuration profiles.")
+    print("")
+    print("Be sure to update this script's dev_ident variable with your developer")
+    print("identity found in your Keychain.")
+    print("")
+    print("Usage: prosign [file path]")
+    print("Example: prosign /Users/bryan/Desktop/com.company.app.mobileconfig")
+    print("Options:")
+    print("\t-h\tPrints this help document.")
+    print("")
+    exit()
+
+if '-h' in argv or '--help' in argv or len(argv) == 1:
+    print_help()
+
+# get profile input, setup output path
+try:
+    profile_path = argv[-1]
+    root, ext = os.path.splitext(profile_path)
+    out_path = root + "-signed" + ext
+except IndexError:
+    print_help()
+
+# verifies that the file exists
+if not os.path.exists(profile_path):
+    print("\nFile not found.")
+    print_help()
+
+# sign the profile
+cmd = [
+    '/usr/bin/security',
+    'cms', '-S',
+    '-N', dev_ident,
+    '-i', profile_path,
+    '-o', out_path
+]
+task = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+out, err = task.communicate()
+if err:
+    print("Errors:\n\t{0}".format(err.strip()))
