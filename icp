@@ -17,7 +17,7 @@ def print_help():
 if '-h' in argv or '--help' in argv or len(argv) == 1:
     print_help()
 
-# get icns input, setuo output path
+# get icns input, setup output path
 try:
     icns_path = argv[-1]
     root, ext = os.path.splitext(icns_path)
