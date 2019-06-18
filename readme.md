@@ -55,14 +55,16 @@ Usage: host-check --port 22 --ip 127.0.0.1 --delay 30
 ```
 
 ## icp
-icp takes an ICNS file and converts it to a PNG. icp will save the PNG to the same directory the ICNS file is in with the .png extension.
+icp takes an ICNS file and converts it to a PNG. icp will save the PNG to the same directory the ICNS file is in with the .png extension. If that directory isn't writable, icp will attempt to save it to your Desktop. You can also specify where to output the file using `-o /path/to/`.
 
 ```
-Usage: icp [-f] [file path]
-Example: icp -f /Users/bryan/Desktop/1Password.icns
+This utility converts ICNS files to PNG.
+Usage:   icp [icns path] [-f] [-o /path/to/]
+Example: icp ~/Downloads/1Password.icns -f -o ~/Documents/icons/
 Options:
-	-f	Skips ICNS file check and forces the conversion to PNG.
-	-h	Prints this help document.
+	-f          Skips ICNS file check and forces the conversion to PNG.
+	-o [path]   Specifies the output path to convert the icon to.
+	-h		    Prints this help document.
 ```
 
 ## pf
