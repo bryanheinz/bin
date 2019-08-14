@@ -1,5 +1,6 @@
 #!/usr/bin/python
 """Update CloudFlare A records with external IP."""
+import sys
 import json
 import urllib
 import httplib
@@ -7,9 +8,16 @@ from pprint import pprint
 
 email = '' # cloudflare@example.com
 key = '' # API key from https://www.cloudflare.com/a/account/my-account found at the bottom of my settings
-zone = '' # example.com
-subdomain = '' # sub.example.com
+push_key = '' # Pushover API key
+push_app_token = '' # Pushover app token
 
+zones = {
+    '': [] # 'zone.com': ['sub.zone.come']
+}
+
+
+def loggy(msg):
+    print(msg)
 
 def api_call(params, path):
     """Runs GET API commands on Cloudflare."""
@@ -26,23 +34,23 @@ def api_call(params, path):
     json_data = json.loads(data)
     return(json_data)
 
-def get_zone_id():
+def get_zone_id(zone):
     """Gets the ID of the subdomain."""
     json_data = api_call({}, 'zones')
     for _ in json_data['result']:
         if _['name'] == zone:
             return(_['id'])
 
-def get_subdomain_ip():
+def get_subdomain_ip(zone, subdomain):
     """Get subdomain's A record."""
-    zone_id = get_zone_id()
+    zone_id = get_zone_id(zone)
     a_records = api_call(
         {
             'type':'A',
         },
         "zones/{0}/dns_records".format(zone_id)
     )
-
+    
     for _ in a_records['result']:
         if _['name'] == subdomain:
             return(_['content'], _['id'])
@@ -55,7 +63,7 @@ def get_home_ip():
     data = response.read().decode('utf-8')
     return(json.loads(data)['ip'])
 
-def update_dns_record(home, sub_id):
+def update_dns_record(home, subdomain, sub_id, zone):
     """Update subdomain's A record with external IP address."""
     params = json.dumps(
         {
@@ -71,35 +79,101 @@ def update_dns_record(home, sub_id):
     }
     conn = httplib.HTTPSConnection("api.cloudflare.com")
     conn.request("PUT",
-        "/client/v4/zones/{0}/dns_records/{1}".format(get_zone_id(), sub_id),
+        "/client/v4/zones/{0}/dns_records/{1}".format(get_zone_id(zone), sub_id),
         params,
         headers
     )
     response = conn.getresponse()
     data = response.read().decode('utf-8')
     json_data = json.loads(data)
-    print("")
-    print("updated IP.")
+    loggy("")
+    loggy("updated IP.")
     pprint(json_data)
-    print("")
+    loggy("")
 
-try:
-    home = get_home_ip()
-    sub, sub_id = get_subdomain_ip()
-except:
-    print("error trying to get home IP or domain information.")
-    exit(1)
+def results(error_dict, changed_domains):
+    error_list = ["Errors:"]
+    
+    dom_list = '\n'.join(changed_domains)
+    
+    if error_dict != {}:
+        for sub in error_dict.keys():
+            error_list.append("{0}\n\t{1}".format(sub, error_dict[sub]))
+        err_list = '\n'.join(err_list)
+        push_msg = "{0}\nUpdated Domains:\n{1}".format(err_list, dom_list)
+    else:
+        push_msg = "Updated Domains:\n{0}".format(dom_list)
+    
+    pushover(push_msg)
 
-if home == sub:
-    # IPs are the same, exit.
-    exit(0)
-else:
+def pushover(msg):
+    if push_key == '' or push_app_token == '':
+        # if the push key or app token isn't set, just skip.
+        loggy("Pushover not configured, skipping.")
+        return
+    
+    conn = httplib.HTTPSConnection("api.pushover.net:443")
+    conn.request("POST", "/1/messages.json",
+        urllib.urlencode({
+            "token": push_app_token,
+            "user": push_key,
+            "message": msg,
+        }), { "Content-type": "application/x-www-form-urlencoded" })
+    conn.getresponse()
+
+def main(zone, subdomain):
+    changes = False
+    errors = False
+    error_msg = ''
+
     try:
-        update_dns_record(home, sub_id)
-        exit(0)
+        home_ip = get_home_ip()
+        sub_ip, sub_id = get_subdomain_ip(zone, subdomain)
     except:
-        print("error updating the DNS records.")
-        exit(1)
+        e = sys.exc_info()
+        loggy("error trying to get home IP or domain information.")
+        errors = True
+        error_msg = "error trying to get home IP or domain information.\n{0}".format(e)
+        return(changes, errors, error_msg)
+    
+    if home_ip == sub_ip:
+        # IPs are the same.
+        return(changes, errors, error_msg)
+    else:
+        try:
+            # DNS record was cleanly updated.
+            update_dns_record(home_ip, subdomain, sub_id, zone)
+            changes = True
+            return(changes, errors, error_msg)
+        except:
+            e = sys.exc_info()
+            loggy("error updating the DNS records.")
+            errors = True
+            error_msg = "error updating the DNS records.\n{0}".format(e)
+            return(changes, errors, error_msg)
+    
+    errors = True
+    error_msg = "Unknown error. Returning at end of main."
+    return(changes, errors, error_msg)
 
-print("something went wrong and the script didn't exit until the end.")
-exit(1)
+
+changes = False
+errors = False
+error_dict = {} # {'subdomain':'error msg'}
+changed_domains = []
+
+for zone in zones.keys():
+    for sub in zones[zone]:
+        changed, errored, error_msg = main(zone, sub)
+        if changed:
+            changes = True
+            changed_domains.append(sub)
+        if errored:
+            errors = True
+            error_dict[sub] = error_msg
+
+if changes or errors:
+    loggy("Changes or errors, sending push...")
+    results(error_dict, changed_domains)
+else:
+    loggy("No changes or errors.")
