@@ -1,5 +1,7 @@
 # bin
-This repository is a collection of command line utilities that I've created.
+NOTE: This branch is an archive of these utilities for Python 2 and macOS Mojave and earlier. Any Python 2 scripts in the Master branch will be converted to Python 3 and possibly only tested against macOS Catalina or newer.
+
+This repository is a collection of weird command line utilities that I've created.
 
 ## b64
 b64 is used to encode or decode base64 strings.
