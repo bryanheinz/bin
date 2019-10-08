@@ -1,5 +1,5 @@
 # bin
-This repository is a collection of command line utilities that I've created.
+This repository is a collection of weird command line utilities that I've created.
 
 ## b64
 b64 is used to encode or decode base64 strings.
@@ -84,6 +84,14 @@ prosign will output a signed profile to the same directory as the input profile 
 
 ```Usage: prosign [file path]
 Example: prosign /Users/bryan/Desktop/com.company.app.mobileconfig```
+
+## sb
+sb is used to quickly and easily find booted Xcode simulators and clean up their status bar.
+
+```
+Usage: sb [--clear]
+    --clear     resets status bar.
+```
 
 ## write-speedtest
 write-speedtest is used to get a rough estimate on the write speed to a target. It's useful for getting a feel of how fast a local disk is or a mounted share.
