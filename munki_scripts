@@ -5,9 +5,9 @@
 # process, prints the specific script key/value, and copies it to your clipboard.
 #
 import os
-import plistlib
 import subprocess
 from sys import argv
+from xml.sax.saxutils import escape
 
 
 # verify the script has the correct amount of arguments
@@ -70,32 +70,17 @@ if selection < 0 or selection > 6:
 # get the menu selection
 menu_selection = options[selection]
 
-# build the command and run makepkginfo on the script
-makepkginfo_cmd = [
-    '/usr/local/munki/makepkginfo',
-    '--'+menu_selection,
-    script_path
-]
+# read the script
+with open(script_path, 'r') as file:
+    script = file.read()
 
-task = subprocess.Popen(
-    makepkginfo_cmd,
-    stdout=subprocess.PIPE,
-    stderr=subprocess.PIPE
-)
-out, err = task.communicate()
-
-# load the plist Munki outputs as Python dictionary
-plsit = plistlib.loads(out)
-# get the sanitized script
-script = plsit[menu_selection]
+# properly escape the script for XML
+escaped_script = escape(script)
 
 # build the plist script
-plist_out = """
-<key>{0}</key>
-<string>
-{1}
-</string>
-""".format(menu_selection, script)
+plist_out = """<key>{0}</key>
+<string>{1}
+</string>""".format(menu_selection, escaped_script)
 
 print(plist_out)
 
