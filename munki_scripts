@@ -1,0 +1,110 @@
+#!/usr/local/bin/python3
+#
+# This script simplifies sanitizing scripts for Munki.
+# It prompts what type of script you'd like to sanitize, runs the makepkginfo
+# process, prints the specific script key/value, and copies it to your clipboard.
+#
+import os
+import plistlib
+import subprocess
+from sys import argv
+
+
+# verify the script has the correct amount of arguments
+if len(argv) != 2:
+    print("Please include the script path, exiting...")
+    print("Example: munki_scripts.py ~/Desktop/preinstall.py")
+    exit(1)
+
+# get the script path
+script_path = argv[-1]
+
+# verify the path is to a file
+if not os.path.isfile(script_path):
+    print("{} doesn't appear to be a valid file.".format(script_path))
+    print("Example: munki_scripts.py ~/Desktop/preinstall.py")
+    exit(1)
+
+# list of _script options for Munki
+options = [
+    'installcheck_script',
+    'uninstallcheck_script',
+    'postinstall_script',
+    'postuninstall_script',
+    'preinstall_script',
+    'preuninstall_script',
+    'uninstall_script'
+]
+
+# menu to present
+menu = """
+Please choose a number from the following options:
+    1 installcheck_script
+    2 uninstallcheck_script
+    3 postinstall_script
+    4 postuninstall_script
+    5 preinstall_script
+    6 preuninstall_script
+    7 uninstall_script
+
+Selection > """
+
+try:
+    # get the user's input and convert the selection to an integer
+    # -1 from the selection to convert the selection from user input to an index
+    selection = int(input(menu)) - 1
+except ValueError:
+    # thrown if the user doesn't enter an integer
+    print("Not a valid selection, exiting...")
+    exit(1)
+except KeyboardInterrupt:
+    # cleanly exits if the user hit control+c
+    print("")
+    exit(0)
+
+# verify the selection is within range
+if selection < 0 or selection > 6:
+    print("Selection is out of range, please select 1-7. Exiting...")
+    exit(1)
+
+# get the menu selection
+menu_selection = options[selection]
+
+# build the command and run makepkginfo on the script
+makepkginfo_cmd = [
+    '/usr/local/munki/makepkginfo',
+    '--'+menu_selection,
+    script_path
+]
+
+task = subprocess.Popen(
+    makepkginfo_cmd,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE
+)
+out, err = task.communicate()
+
+# load the plist Munki outputs as Python dictionary
+plsit = plistlib.loads(out)
+# get the sanitized script
+script = plsit[menu_selection]
+
+# build the plist script
+plist_out = """
+<key>{0}</key>
+<string>
+{1}
+</string>
+""".format(menu_selection, script)
+
+print(plist_out)
+
+# copy the plist script to the clipboard for pasting into the pkginfo file
+task = subprocess.Popen(
+    '/usr/bin/pbcopy',
+    env={'LANG': 'en_US.UTF-8'},
+    stdin=subprocess.PIPE
+)
+task.communicate(
+    plist_out.encode('utf-8')
+)
