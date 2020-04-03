@@ -1,4 +1,10 @@
 #!/usr/bin/env python
+
+# tested in
+# Python 2.7.16
+# Python 3.7.3
+
+import getpass
 import logging
 import subprocess
 from sys import argv
@@ -8,16 +14,17 @@ pts = "20" # packets to send
 host = "google.com"
 ps = 0 # total packets sent
 pr = 0 # total packets received
+avrg = [] # average ms list
+max_avrg = 1000 # max avrg list size before rolling the average
 
-cmd = '/usr/bin/stat -f "%Su" /dev/console'.split(' ')
-output = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-user = output.stdout.read().strip().decode("utf-8")
-user = user.replace('"', '')
-
-logging.basicConfig(filename='/Users/{0}/Library/Logs/ping_test.log'.format(str(user)),\
-    level=logging.INFO,\
-    format='%(asctime)s - %(levelname)s -  %(message)s',\
-    datefmt='%Y-%m-%d %I:%M:%S %p')
+if '--log' in argv:
+    user = getpass.getuser()
+    logging.basicConfig(
+        filename='/Users/{0}/Library/Logs/ping_test.log'.format(str(user)),
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s -  %(message)s',
+        datefmt='%Y-%m-%d %I:%M:%S %p'
+    )
 
 def switch(item):
     index = argv.index(item) + 1
@@ -29,6 +36,7 @@ def helpr():
     print("-p, --packets [n]\thow many packets to send - 20 default")
     print("-a, --addr [dns or ip]\taddress to send the packets - google.com default")
     print("-l, --loop \t\tloops the pings until control-c")
+    print("--log \t\t\tSaves a persistant log to ~/Library/Logs/ping_test.log")
     print("")
     exit(0)
 
@@ -36,67 +44,111 @@ def helpr():
 def core(pts, host):
     global ps
     global pr
+    global avrg
     
     cmd = ["ping", "-c", pts, host]
     
     task = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     out, err = task.communicate()
     
-    ping_results = out.decode("utf-8").split("\n")[-3:]
-    
-    try:
-        packets = ping_results[0]
-        latency = ping_results[1]
-    except:
-        if "cannot resolve" in err:
-            print("cannot resolve host")
+    if 'cannot resolve' in err.decode("utf-8"):
+        print("cannot resolve host")
+        if '--log' in argv:
             logging.info("cannot resolve host")
-            sleep(5)
-            return
-        print("output:")
-        print(out)
-        print("")
-        print("errors:")
-        print(err)
-        print("")
-        exit(1)
+        return
     
-    try:
-        packets_received = packets.split(" ")[3]
-        packets_lost_percent = packets.split(" ")[6]
-        latency_speeds = latency.split(" ")[3]
-        latency_average = latency_speeds.split('/')[1]
-    except IndexError:
-        packets = ping_results[1].split(' ')
-        packets_received = packets[3]
-        packets_lost_percent = packets[6]
-        latency_average = "N/A"
+    # get the ping results and split it into an array
+    results_split = out.decode("utf-8").split("\n")
     
-    info = """{0}/{1} packets received
-{2} packet loss
-{3}ms latency""".format(packets_received, pts,packets_lost_percent, latency_average)
+    # setup a couple of vars
+    speed_split = None
+    avg_speed_index = None
     
-    print("")
+    # loop through and parse the ping result
+    for r in results_split:
+        if 'packets transmitted' in r:
+            # this is the packets sent/recieved/% line
+            packet_info = r.split(', ')
+            # parse the packet info for how many were sent, recieved, success %
+            for p in packet_info:
+                if 'transmitted' in p:
+                    packets_sent = p.split(' ')[0]
+                elif 'received' in p:
+                    packets_received = p.split(' ')[0]
+                elif 'packet loss' in p:
+                    packets_lost_percent = p.split(' ')[0]
+        elif 'min/avg/max' in r:
+            # this is the min/avg/max line, this parses out the average speed
+            r_split = r.split(' ')
+            for s in r_split:
+                # split the string, find avg, get it's index position
+                if 'avg' in s:
+                    avg_speed_index = s.split('/').index('avg')
+                elif '/' in s:
+                    # this finds the actual min/avg/max numbers and splits
+                    # it into an array
+                    speed_split = s.split('/')
+    
+    # use the avg index to find the avg speed
+    if speed_split and avg_speed_index:
+        average_speed = speed_split[avg_speed_index]
+    else:
+        # couldn't get the avg index? assuming avg is array element 1
+        average_speed = speed_split[1]
+    
+    info = """
+{0} packet loss
+{1}/{2} packets received
+{3} average latency
+""".format(packets_lost_percent, packets_received, packets_sent, average_speed)
+    
     print(info)
-    print("")
     
-    logging.info(info)
+    if '--log' in argv:
+        logging.info(info)
     
-    ps += int(pts)
-    pr += int(packets_received)
+    if "--loop" in argv or "-l" in argv:
+        # if looping, this lets us add up how many packets are sent and received
+        ps += int(pts)
+        pr += int(packets_received)
+        # if looping, this appends the average speed to an array for an overall
+        # average
+        avrg.append(float(average_speed))
+        
+        # this helps keep the average array from growing too large
+        # once hitting the max_avrg, it will average the array and reset it with
+        # the average up until the max_avrg was reached.
+        if len(avrg) == max_avrg:
+            roll_average()
 
-if "-h" in argv:
-    helpr()
-if "--help" in argv:
+def roll_average():
+    global avrg
+    # get the current overall average
+    average = get_average()
+    # reset avrg to the current overall average
+    avrg = [average]
+    # if keeping a persistant log, log this event
+    if '--log' in argv:
+        logging.info("Rolling average {}".format(average))
+
+def get_average():
+    # get the overall average for the avrg latency and return it
+    average = sum(avrg)/len(avrg)
+    return(
+        round(average , 2)
+    )
+
+if "-h" in argv or "--help" in argv:
     helpr()
 if "-p" in argv:
     pts = switch("-p")
-if "--packets" in argv:
+elif "--packets" in argv:
     pts = switch("--packets")
 if "-a" in argv:
     host = switch("-a")
-if "--addr" in argv:
+elif "--addr" in argv:
     host = switch("--addr")
+
 
 try:
     if "--loop" in argv or "-l" in argv:
@@ -104,9 +156,16 @@ try:
             core(pts, host)
     else:
         core(pts, host)
+        exit(0)
 except KeyboardInterrupt:
-    print("")
-    print("total packets sent/received:\n\t{0}/{1}".format(pr, ps))
-    print("")
-    logging.info("total packets sent/received:\n\t{0}/{1}".format(pr, ps))
+    average = get_average()
+    info = """
+average latency: {0}ms
+total packets sent/received: {1}/{2}
+""".format(str(average), pr, ps)
+    
+    print(info)
+    
+    if '--log' in argv:
+        logging.info(info)
     exit(0)
