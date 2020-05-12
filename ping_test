@@ -94,7 +94,13 @@ def core(pts, host):
         average_speed = speed_split[avg_speed_index]
     else:
         # couldn't get the avg index? assuming avg is array element 1
-        average_speed = speed_split[1]
+        try:
+            average_speed = speed_split[1]
+        except TypeError:
+            print("\n***\nError getting average speed")
+            print(f"Relavant line: {average_speed}")
+            print("Setting average_speed to 'N/A'.\n***\n")
+            average_speed = 'N/A'
     
     info = """
 {0} packet loss
