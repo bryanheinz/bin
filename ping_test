@@ -98,7 +98,7 @@ def core(pts, host):
             average_speed = speed_split[1]
         except TypeError:
             print("\n***\nError getting average speed")
-            print(f"Relavant line: {average_speed}")
+            print("Relavant line: {0}".format(average_speed))
             print("Setting average_speed to 'N/A'.\n***\n")
             average_speed = 'N/A'
     
