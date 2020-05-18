@@ -2,12 +2,12 @@
 This repository is a collection of weird command line utilities that I've created.
 
 ## b64
-b64 is used to encode or decode base64 strings.
+b64 is used to quickly encode or decode base64 strings.
 
 ```
-Usage: b64 [option] [string]
-    -e [string]
-    -d [string]
+Usage: b64 [-e|-d] [string]
+    -e Encode string.
+    -d Decode string.
 ```
 
 ## bat\_stat
@@ -24,9 +24,18 @@ bt\_restart is used to restart Bluetooth on macOS. bt\_restart uses the blueutil
 cf is a script that will check your external IP and update the A record of a subdomain on Cloudflare with that IP. Update the script with your Cloudflare email, API key, domain, and subdomain.
 
 ## cl
-cl is used to open a URL in Chrome without Chrome's user interface.
+"Chromeless" is used to open a URL in Chrome without Chrome's user interface.
 
 `Usage: cl [URL]`
+
+## ean
+"Expand Apple News" is used to try and extract the original URL from an Apple News article URL. Sometimes the original URL can't be found from the apple.news redirect link.
+
+ean can be run as is via Pythonista as a shortcut if desired.
+
+ean requires BeautifulSoup 4 and the Requests module.
+
+`Usage: ean`
 
 ## fire-proxy
 fire-proxy is used to enable or disable Firefox's proxy. It sets Firefox's proxy to 127.0.0.1 with the port 4020. I use this in conjunction with an SSH reverse proxy tunnel (`ssh -D 4020 user@host`).
@@ -71,6 +80,20 @@ Options:
 pf is used to rename a script to postflight and make it executable. It's useful for updating a payload free package script.
 
 `Usage: pf /path/to/script.py`
+
+## ping_test
+ping_test is used to test long pings to network items when troubleshooting. Pings can be saved to a timestamped log and when stopped it will give you an average ping speed and total for packets sent and lost.
+
+```
+Usage: ping_test [options]
+Example: ping_test -p 5 -a 1.1 -l --log
+Options:
+    -h, --help              prints the help menu
+    -p, --packets [20]      specify amount of packets
+    -a, --addr [google.com] specify a fqdn or ip address
+    -l, --loop              indefinitely loops pint_test (control+c to cancel)
+    --log                   saves a log file to ~/Library/Logs/ping_test.log
+```
 
 ## pj
 pj is used to print a json file in a readable format.
