@@ -1,0 +1,84 @@
+#!/usr/bin/python3
+
+#
+# r2d -- raw to dng -- uses Adobe's DNG Converter to convert every CR file in
+# a source directory into a DNG file in the destination directory keeping the
+# source directories hierarchy.
+#
+
+import os
+import subprocess
+from glob import glob
+from sys import argv
+
+
+def _help():
+    print("Usage: r2d src/raws/ dst/dngs/")
+    exit()
+
+
+# path to Adobe DNG Converter binary
+adng = "/Applications/Adobe DNG Converter.app/Contents/MacOS/Adobe DNG Converter"
+
+
+# check if the binary exists, if it doesn't, exit and tell the user to download it
+if not os.path.exists(adng):
+    print("Please install Adobe DNG Converter.")
+    print("https://helpx.adobe.com/photoshop/digital-negative.html")
+    _help()
+
+
+# get the source and destination arguments
+try:
+    src = argv[1]
+    dst = argv[2]
+except:
+    print("Invalid arguments.")
+    _help()
+
+
+# validate the the src and dst is a directory
+if not os.path.isdir(src):
+    print("Source is not a directory.")
+    _help()
+if not os.path.isdir(dst):
+    print("Destination is not a directory.")
+    _help()
+
+
+# loop through each file in the source
+for root, dirs, files in os.walk(src):
+    for _ in files:
+        # get the extension and check if it's a camera raw extension
+        # if it's not a CR extension, continue to the next file.
+        ext = os.path.splitext(_)[-1].lower()
+        if '.cr' not in ext:
+            continue
+        
+        
+        # get the relative path to the files by splitting out the source path
+        rel_path = root.split(src)[-1]
+        
+        # check if the file is in the root of the source or not
+        if rel_path != '':
+            # path wasn't root, remove a preceding / if it exists
+            if rel_path[0] == '/':
+                rel_path = rel_path[1:]
+        
+        # join the dst path with the relative path. this keeps the original
+        # hierarchy in the destination
+        dst_path = os.path.join(dst, rel_path)
+        # combine the root path and the filename to get the full src path
+        src_path = os.path.join(root, _)
+        
+        # create the dst folder if it doesn't exist
+        if not os.path.isdir(dst_path):
+            os.makedirs(dst_path)
+        else:
+            # the dst exists, validate that it is a directory
+            if not os.path.isdir(dst_path):
+                print(f"Destination exists, but isn't a directory:\n{dst_path}")
+                _help()
+        
+        # convert the file!
+        subprocess.call([ adng, '-d', dst_path, src_path ])
