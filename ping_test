@@ -30,6 +30,8 @@ def helpr():
     print("-a, --addr [dns or ip]\taddress to send the packets - google.com default")
     print("-l, --loop \t\tloops the pings until control-c")
     print("--log \t\t\tSaves a persistant log to ~/Library/Logs/ping_test.log")
+    print("--path [path]\t\tOptional --log subcommand that overwrites the default")
+    print("\t\t\tlog location")
     print("")
     exit(0)
 
@@ -155,13 +157,20 @@ if '--log' in argv:
     
     today = datetime.now().strftime('%Y_%m_%d_%H%M%S')
     lhost = host.replace('.', '_')
-    user = getpass.getuser()
     
-    fn = '/Users/{0}/Library/Logs/ping_test-{1}-{2}.log'.format(
-        str(user),
-        lhost,
-        today
-    )
+    if '--path' in argv:
+        import os
+        path_index = argv.index('--path')
+        lp = argv[path_index+1]
+        file_name = 'ping_test-{0}-{1}.log'.format(lhost, today)
+        fn = os.path.join(lp, file_name)
+    else:
+        user = getpass.getuser()
+        fn = '/Users/{0}/Library/Logs/ping_test-{1}-{2}.log'.format(
+            str(user),
+            lhost,
+            today
+        )
     
     logging.basicConfig(
         filename=fn,
