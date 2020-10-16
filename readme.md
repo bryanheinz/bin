@@ -105,8 +105,15 @@ prosign is a shortcut script to sign macOS configuration profiles. It requires y
 
 prosign will output a signed profile to the same directory as the input profile with "-signed" appended to it.
 
-```Usage: prosign [file path]
-Example: prosign /Users/bryan/Desktop/com.company.app.mobileconfig```
+```
+Usage: prosign [file path]
+Example: prosign /Users/bryan/Desktop/com.company.app.mobileconfig
+```
+
+## r2d
+r2d -- raw to dng -- uses Adobe's DNG Converter to convert every CR file in a source directory into a DNG file in the destination directory keeping the source directories hierarchy.
+
+```Usage: r2d src dst```
 
 ## sb
 sb is used to quickly and easily find booted Xcode simulators and clean up their status bar.
