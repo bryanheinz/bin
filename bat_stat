@@ -1,4 +1,10 @@
 #!/usr/bin/python
+
+#
+# Python 2 and 3 compatible
+# Tested with Python v3.9
+#
+
 import subprocess
 from sys import argv
 
@@ -9,19 +15,23 @@ if '-h' in argv:
 
 def termy(cmd):
     out = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-    output = out.stdout.readlines()
+    output = out.stdout.read().decode()
+    output = output.split('\n')
     return(output)
     
 def ioreg():
-    output = termy(['ioreg', '-l'])
-    
+    output = termy(['ioreg', '-c', 'AppleSmartBattery'])
     for line in output:
         if "BatterySerialNumber" in line:
             battery_serial_line = line
         elif "LegacyBatteryInfo" in line:
             battery_info_line = line
         elif "DesignCapacity" in line:
-            battery_design_capacity_line = line
+            try:
+                if battery_design_capacity_line:
+                    continue
+            except:
+                battery_design_capacity_line = line
         elif "IOPlatformSerialNumber" in line:
             mac_serial_line = line
     
@@ -36,9 +46,13 @@ def ioreg():
             
     battery_serial = battery_serial_line.split('"')[-2]
     battery_design_capacity = battery_design_capacity_line.split(' ')[-1].strip()
-    mac_serial = mac_serial_line.split('"')[-2]
     
-    return(battery_serial, battery_cycle, battery_capacity, battery_design_capacity, mac_serial)
+    return(
+        battery_serial,
+        battery_cycle,
+        battery_capacity,
+        battery_design_capacity
+    )
             
 def system_profiler():
     output = termy(['system_profiler', 'SPPowerDataType'])
@@ -47,16 +61,27 @@ def system_profiler():
             battery_condition = line
     battery_condition = battery_condition.split(': ')[-1]
     return(battery_condition.strip())
-    
+
+def get_mac_serial():
+    sys_prof = termy(['system_profiler', 'SPHardwareDataType'])
+    for line in sys_prof:
+        if 'Serial Number (system)' in line:
+            serial_line = line.strip()
+            serial = serial_line.split(' ')[-1]
+    return(serial)
+
 def capacity_percent(current_capacity, design_capacity):
-    return("{0:.2f}%".format(float(current_capacity) / float(design_capacity) * 100))
+    return("{0:.2f}%".format(
+        float(current_capacity) / float(design_capacity) * 100
+    ))
 
 
 bat_stats = ioreg()
 bat_health = capacity_percent(bat_stats[2], bat_stats[3])
 bat_condition = system_profiler()
+mac_serial = get_mac_serial()
 
-print("Mac:\t\t\t\t{0}".format(bat_stats[4]))
+print("Mac:\t\t\t\t{0}".format(mac_serial))
 print("Battery serial number:\t\t{0}".format(bat_stats[0]))
 print("Battery charge cycle count:\t{0}".format(bat_stats[1]))
 print("Battery health percentage:\t{0}".format(bat_health))
