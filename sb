@@ -8,10 +8,21 @@ import subprocess
 from sys import argv
 
 
+def _help():
+    print("StatusBar Help")
+    print("\nUsage: sb [--clear]")
+    print("\t--clear\tResets status bar.")
+    print("\nRunning without any arguments will prompt to select a running simulator")
+    print("and then configure its status bar.")
+    exit(0)
+
 def termy(cmd):
     task = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     out, err = task.communicate()
     return(out, err)
+
+if '-h' in argv or '--help' in argv:
+    _help()
 
 # get a list of all simulators
 simulators, err = termy(['xcrun', 'simctl', 'list', '--json'])

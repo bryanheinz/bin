@@ -1,24 +1,38 @@
 #!/usr/bin/python
+import getpass
 import base64 as b64
 from sys import argv
 
 def help():
     print("This script will encode or decode base64 strings.")
     print("Usage: b64 [option] [string]")
-    print("\t-e [string]")
-    print("\t-d [string]")
+    print("\t-e\tBase 64 encrypts the provided string.")
+    print("\t-p\tUsed with the -e option. Securely prompts for a password.")
+    print("\t-d\tDecrypts the provided base 64 encrypted string.")
+    exit(0)
 
 def switch(item):
-    index = argv.index(item) + 1
-    return(argv[index])
+    try:
+        index = argv.index(item) + 1
+        return(argv[index])
+    except:
+        help()
     
 if '-e' in argv:
     # base64 encode
-    value = switch('-e')
+    if '-p' in argv:
+        value = getpass.getpass()
+    elif len(argv) == 2:
+        value = getpass.getpass()
+    else:
+        value = switch('-e')
     print(b64.b64encode(value))
 elif '-d' in argv:
     # base64 decode
-    value = switch('-d')
+    if len(argv) == 2:
+        value = getpass.getpass()
+    else:
+        value = switch('-d')
     print(b64.b64decode(value))
 else:
     help()
