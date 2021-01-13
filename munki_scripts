@@ -10,11 +10,12 @@ from sys import argv
 from xml.sax.saxutils import escape
 
 
-# verify the script has the correct amount of arguments
-if len(argv) != 2:
-    print("Please include the script path, exiting...")
-    print("Example: munki_scripts.py ~/Desktop/preinstall.py")
-    exit(1)
+# --no-strip doesn't strip comments and empty lines
+if '--no-strip' in argv:
+    no_strip = True
+else:
+    no_strip = False
+
 
 # get the script path
 script_path = argv[-1]
@@ -22,6 +23,7 @@ script_path = argv[-1]
 # verify the path is to a file
 if not os.path.isfile(script_path):
     print("{} doesn't appear to be a valid file.".format(script_path))
+    print("munki_scripts.py [options] [path]")
     print("Example: munki_scripts.py ~/Desktop/preinstall.py")
     exit(1)
 
@@ -72,10 +74,26 @@ menu_selection = options[selection]
 
 # read the script
 with open(script_path, 'r') as file:
-    script = file.read()
+    if no_strip:
+        # read as a string if we're not stripping
+        script = file.read()
+    else:
+        # read as an array if we're stripping
+        script_readlines = file.readlines()
+
+# if stripping empty lines and comments clean it up!
+if not no_strip:
+    script_array = []
+    for line in script_readlines:
+        # skip empty lines or commentted lines
+        if line == '\n' or line.startswith('#'):
+            continue
+        else:
+            script_array.append(line)
+    script = ''.join(script_array)
 
 # properly escape the script for XML
-escaped_script = escape(script)
+escaped_script = escape(script.strip())
 
 # build the plist script
 plist_out = """<key>{0}</key>
