@@ -86,10 +86,15 @@ if not no_strip:
     script_array = []
     for line in script_readlines:
         # skip empty lines or commentted lines
-        if line == '\n' or line.startswith('#'):
-            continue
-        else:
-            script_array.append(line)
+        if line == '\n': continue
+        if '#' in line:
+            no_space = line.replace(' ', '').replace('\t', '')
+            if no_space.startswith('#!'):
+                pass
+            else:
+                continue
+        line.startswith('#')
+        script_array.append(line)
     script = ''.join(script_array)
 
 # properly escape the script for XML
