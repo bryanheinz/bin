@@ -85,6 +85,7 @@ def core(pts, host):
                     speed_split = s.split('/')
     
     # use the avg index to find the avg speed
+    average_speed = "N/A"
     if speed_split and avg_speed_index:
         average_speed = speed_split[avg_speed_index]
     else:
