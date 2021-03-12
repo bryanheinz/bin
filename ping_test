@@ -11,6 +11,9 @@ from sys import argv
 from time import sleep
 
 
+__version__ = "1.1.0"
+
+
 pts = "20" # packets to send
 host = "google.com"
 ps = 0 # total packets sent
@@ -36,7 +39,7 @@ def helpr():
     exit(0)
 
 
-def core(pts, host):
+def main(pts, host):
     global ps
     global pr
     global avrg
@@ -186,16 +189,18 @@ if '--log' in argv:
 try:
     if "--loop" in argv or "-l" in argv:
         while True:
-            core(pts, host)
+            main(pts, host)
     else:
-        core(pts, host)
+        main(pts, host)
         exit(0)
 except KeyboardInterrupt:
     average = get_average()
+    packets_lost = ps - pr
     info = """
 average latency: {0}ms
 total packets sent/received: {1}/{2}
-""".format(str(average), pr, ps)
+packets lost: {3}
+""".format(str(average), pr, ps, packets_lost)
     
     print(info)
     
