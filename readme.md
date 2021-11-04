@@ -133,3 +133,8 @@ Usage: write-speedtest [options]
     --path  [s] sets the path to test the disk speed
     --tests [n] how many test files to generate (default is 5)
 ```
+
+## yv
+YAML Validate is a simple YAML validator.
+
+`yv /path/to/file.yaml`
