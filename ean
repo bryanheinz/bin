@@ -20,11 +20,11 @@ def get_redirect_link(url):
         soup = bs(data, "html5lib")
     except:
         soup = bs(data, "html.parser")
-    
+    # search_for_real_link(soup)
     for link in soup.find_all('a'):
         try:
             if 'click here' in link.text.lower():
-                return(link.get('href'))
+                return link.get('href')
             print(link)
         except:
             if '-v' in argv:
@@ -38,6 +38,20 @@ def get_redirect_link(url):
     
     print('no click here found')
     
+    exit()
+
+def search_for_real_link(soup):
+    # this is an experimental function to search for the real link based on the
+    # title and author tags. this could be used as a fallback if the real URL
+    # couldn't be found in the AppleNews HTML.
+    article_author = None
+    for meta in soup.head.find_all('meta'):
+        # if meta.name == 'Author':
+        if meta.get('name') == 'Author':
+            article_author = meta.get('content')
+    article_title = soup.find('title').string
+    print(article_author)
+    print(article_title)
     exit()
 
 try:
