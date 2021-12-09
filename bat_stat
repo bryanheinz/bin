@@ -1,10 +1,12 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 #
 # Python 2 and 3 compatible
 # Tested with Python v3.9
+# Tested on macOS 10.14 - 12
 #
 
+import re
 import subprocess
 from sys import argv
 
@@ -16,14 +18,58 @@ if '-h' in argv:
 def termy(cmd):
     out = subprocess.Popen(cmd, stdout=subprocess.PIPE)
     output = out.stdout.read().decode()
-    output = output.split('\n')
-    return(output)
-    
+    return output
+
+def research(reg, string):
+    # this function uses the RegEx search function and returns group 1
+    researched = re.search(reg, string)
+    try:
+        report = researched.group(1)
+    except:
+        report = None
+    return report
+
 def ioreg():
     output = termy(['ioreg', '-c', 'AppleSmartBattery'])
-    for line in output:
+    # legacy split to be compatible with the old method of getting  battery info
+    out_split = output.split('\n')
+    
+    #
+    # the way the is stored is different in newer OS'
+    # this new method uses regex to find the information
+    #
+    # get the battery serial
+    re_batt_serial = r'\"Serial\"=\"(\w+)\"'
+    battery_serial = research(re_batt_serial, output)
+    
+    # get the battery's design capacity
+    re_batt_design_cap = r'\"DesignCapacity\" = (\d+)'
+    battery_design_capacity = research(re_batt_design_cap, output)
+    
+    # get the battery's current max capacity
+    re_max_cap = r'\"MaxCapacity\" = (\d+)'
+    battery_capacity = research(re_max_cap, output)
+    
+    # get the battery's cycle count
+    re_cycle_count = r'\"CycleCount\" = (\d+)'
+    battery_cycle = research(re_cycle_count, output)
+    
+    if battery_serial is not None and \
+        battery_cycle is not None and \
+        battery_capacity is not None and \
+        battery_design_capacity is not None:
+        return battery_serial, \
+            battery_cycle, \
+            battery_capacity, \
+            battery_design_capacity
+    
+    
+    
+    for line in out_split:
         if "BatterySerialNumber" in line:
-            battery_serial_line = line
+            # old method to get battery serial
+            if battery_serial is None:
+                battery_serial_line = line
         elif "LegacyBatteryInfo" in line:
             battery_info_line = line
         elif "DesignCapacity" in line:
@@ -35,18 +81,39 @@ def ioreg():
         elif "IOPlatformSerialNumber" in line:
             mac_serial_line = line
     
+    # old methods to get battery max capacity and cycle count
     battery_info = battery_info_line.split(',')
     for line in battery_info:
         if "Capacity" in line:
-            battery_capacity = line.split('=')[-1]
-            battery_capacity = battery_capacity.replace('}', '')
+            # old method to get battery max capacity
+            if battery_capacity == None:
+                battery_capacity = line.split('=')[-1]
+                battery_capacity = battery_capacity.replace('}', '')
         elif "Cycle Count" in line:
-            battery_cycle = line.split('=')[-1]
-            battery_cycle = battery_cycle.replace('}', '').strip()
-            
-    battery_serial = battery_serial_line.split('"')[-2]
-    battery_design_capacity = battery_design_capacity_line.split(' ')[-1].strip()
+            # old method to get battery battery cycle count
+            if battery_cycle == None:
+                battery_cycle = line.split('=')[-1]
+                battery_cycle = battery_cycle.replace('}', '').strip()
     
+    # old method to get battery serial
+    # battery_serial may be None if the OS is older the old method was
+    # to get the bettery serial was used
+    if battery_serial is None:
+        try:
+            battery_serial = battery_serial_line.split('"')[-2]
+        except:
+            battery_serial = "NO SERIAL"
+    
+    if battery_design_capacity is None:
+        battery_design_capacity = battery_design_capacity_line.split(' ')[-1] \
+            .strip()
+        if ',' in battery_design_capacity:
+            bdc_split = battery_design_capacity.split(',')
+            for line in bdc_split:
+                if 'DesignCapacity' not in line: continue
+                battery_design_capacity = line.split('=')[-1]
+            battery_design_capacity = battery_design_capacity.replace('}', '')
+            battery_design_capacity = battery_design_capacity.replace('{', '')
     return(
         battery_serial,
         battery_cycle,
@@ -56,24 +123,43 @@ def ioreg():
             
 def system_profiler():
     output = termy(['system_profiler', 'SPPowerDataType'])
+    # legacy output split
+    out_split = output.split('\n')
+    
+    # new method for getting the battery condition
+    re_batt_condition = r'Condition: (.+)'
+    battery_condition = research(re_batt_condition, output)
+    if battery_condition is not None:
+        return battery_condition
+    
+    # legacy method for getting the battery condition
     for line in output:
         if "Condition:" in line:
             battery_condition = line
     battery_condition = battery_condition.split(': ')[-1]
-    return(battery_condition.strip())
+    return battery_condition.strip()
 
 def get_mac_serial():
     sys_prof = termy(['system_profiler', 'SPHardwareDataType'])
-    for line in sys_prof:
+    # legacy split
+    sys_prof_split = sys_prof.split('\n')
+    
+    # new method for getting the serial
+    re_serial = r'Serial.*: (.+)'
+    serial = research(re_serial, sys_prof)
+    if serial is not None:
+        return serial
+    
+    # legacy method for getting the serial
+    for line in sys_prof_split:
         if 'Serial Number (system)' in line:
             serial_line = line.strip()
             serial = serial_line.split(' ')[-1]
-    return(serial)
+    return serial
 
 def capacity_percent(current_capacity, design_capacity):
-    return("{0:.2f}%".format(
-        float(current_capacity) / float(design_capacity) * 100
-    ))
+    capacity_percent = float(current_capacity) / float(design_capacity) * 100
+    return "{0:.2f}%".format(capacity_percent)
 
 
 bat_stats = ioreg()
