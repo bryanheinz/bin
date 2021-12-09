@@ -6,14 +6,25 @@
 # Tested on macOS 10.14 - 12
 #
 
+import os
 import re
 import subprocess
 from sys import argv
+
+
+# the file will be saved as 'file_report_path/battery_report_SERIAL.txt'
+file_report_path = '/private/tmp'
+
 
 if '-h' in argv:
     print("Help:")
     print("\t-v for verbose output.")
     exit(0)
+
+
+def get_arg(item):
+    index = argv.index(item) + 1
+    return(argv[index])
 
 def termy(cmd):
     out = subprocess.Popen(cmd, stdout=subprocess.PIPE)
@@ -162,6 +173,12 @@ def capacity_percent(current_capacity, design_capacity):
     return "{0:.2f}%".format(capacity_percent)
 
 
+if '--path' in argv:
+    file_report_path = get_arg('--path')
+elif '-p' in argv:
+    file_report_path = get_arg('-p')
+
+
 bat_stats = ioreg()
 bat_health = capacity_percent(bat_stats[2], bat_stats[3])
 bat_condition = system_profiler()
@@ -175,3 +192,27 @@ print("Battery condition:\t\t{0}".format(bat_condition))
 if '-v' in argv:
     print("Battery capacity:\t\t{0}".format(bat_stats[2]))
     print("Battery design capacity:\t{0}".format(bat_stats[3]))
+
+if '-nf' in argv:
+    exit(0)
+
+battery_report = """
+Mac: {0}
+Battery serial number: {1}
+Battery charge cycle count: {2}
+Battery health percentage: {3}
+Battery condition: {4}
+Battery capacity: {5}
+Battery design capacity {6}
+""".format(mac_serial, bat_stats[0], bat_stats[1], bat_health, bat_condition, \
+    bat_stats[2], bat_stats[3])
+
+file_name = 'battery_report_{0}.txt'.format(mac_serial)
+file_path = os.path.join(file_report_path, file_name)
+
+with open(file_path, 'w') as file:
+    file.write(battery_report)
+
+print("\nThe report file can be found at {}".format(file_path))
+
+termy(['open', file_report_path])
