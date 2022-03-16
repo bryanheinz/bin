@@ -1,33 +1,127 @@
-#!/usr/local/bin/python3
+#!/usr/bin/env python3
+
 #
 # This script simplifies sanitizing scripts for Munki.
 # It prompts what type of script you'd like to sanitize, runs the makepkginfo
 # process, prints the specific script key/value, and copies it to your clipboard.
 #
+
 import os
 import subprocess
 from sys import argv
 from xml.sax.saxutils import escape
 
 
-# --no-strip doesn't strip comments and empty lines
-if '--no-strip' in argv:
-    no_strip = True
-else:
-    no_strip = False
+def _help(exit_status=0):
+    print("munki_scripts [options] <script>")
+    print("Example: munki_scripts ~/Desktop/preinstall.py")
+    print("")
+    print("Args:")
+    print("\t--help, -h         – Prints this help menu.")
+    print("\t--select-type, -st – Forces script type selection instead of guessing.")
+    print("\t--skip-strip, -ss  – Skips stripping comments and empty lines.")
+    exit(exit_status)
+
+def main():
+    menu_selection = get_script_type()
+    
+    script = read_script()
+    
+    if SKIP_STRIP is False:
+        script = strip_comments(script)
+    
+    # properly escape the script for XML
+    escaped_script = escape(script.strip())
+    
+    # build the plist version of the script from the template
+    plist_out = PLIST_TMP.format(menu_selection, escaped_script)
+    
+    print(plist_out)
+    
+    # copy the plist script to the clipboard for pasting into the pkginfo file
+    copy_to_clipboard(plist_out)
+
+def get_script_type():
+    selection = None
+    
+    if SELECT_TYPE is False:
+        for o in options:
+            if o not in SCRIPT_PATH: continue
+            selection = options.index(o)
+    
+    if selection is None:
+        selection = choose_script_type()
+    
+    return options[selection]
+
+def choose_script_type():
+    try:
+        # print the 'menu' of options
+        print("Please choose a number from the following options:")
+        for o in options:
+            print(f"    {options.index(o)+1}. {o}")
+        print('')
+        # get the user's input and convert the selection to an integer
+        # -1 from the selection to convert the selection from user input to an index
+        selection = int(input('Selection > ')) - 1
+    except ValueError:
+        # thrown if the user doesn't enter an integer
+        print("\nNot a valid selection, please try again.\n")
+        selection = choose_script_type()
+    except KeyboardInterrupt:
+        # cleanly exits if the user hit control+c
+        print("")
+        exit(0)
+    
+    # verify the selection is within range
+    if selection < 0 or selection > 6:
+        print("\nSelection is out of range, please select 1-7.\n")
+        selection = choose_script_type()
+    
+    return selection
+
+def read_script():
+    with open(SCRIPT_PATH, 'r') as file:
+        if SKIP_STRIP is True:
+            # read as a string if we're not stripping
+            script = file.read()
+        else:
+            # read as an array if we're stripping
+            script = file.readlines()
+    return script
+
+def strip_comments(script_lines):
+    # strip empty lines and comment lines
+    #
+    # this only works for scripts that use # for comments
+    # for languages like Swift where # might denote a compiler directive, this
+    # can be dangerous.
+    #
+    # this will skip over any matching line, otherwise the line will be appended
+    # to an array. the array will then be joined as the script and sent on to be
+    # made into a plist.
+    script_array = []
+    for line in script_lines:
+        # skip empty lines or commentted lines
+        _line = line.strip()
+        # empty new line
+        if _line == '': continue
+        # check if the line is a comment, but not a shebang (!#)
+        if _line.startswith('#') and _line.startswith('#!/') is False: continue
+        script_array.append(line)
+    script = ''.join(script_array)
+    return script
+
+def copy_to_clipboard(plist_out):
+    task = subprocess.Popen(
+        '/usr/bin/pbcopy',
+        env={'LANG': 'en_US.UTF-8'},
+        stdin=subprocess.PIPE
+    )
+    task.communicate(plist_out.encode('utf-8'))
 
 
-# get the script path
-script_path = argv[-1]
-
-# verify the path is to a file
-if not os.path.isfile(script_path):
-    print("{} doesn't appear to be a valid file.".format(script_path))
-    print("munki_scripts.py [options] [path]")
-    print("Example: munki_scripts.py ~/Desktop/preinstall.py")
-    exit(1)
-
-# list of _script options for Munki
+# !Munki script types
 options = [
     'installcheck_script',
     'uninstallcheck_script',
@@ -38,81 +132,39 @@ options = [
     'uninstall_script'
 ]
 
-# menu to present
-menu = """
-Please choose a number from the following options:
-    1 installcheck_script
-    2 uninstallcheck_script
-    3 postinstall_script
-    4 postuninstall_script
-    5 preinstall_script
-    6 preuninstall_script
-    7 uninstall_script
-
-Selection > """
-
-try:
-    # get the user's input and convert the selection to an integer
-    # -1 from the selection to convert the selection from user input to an index
-    selection = int(input(menu)) - 1
-except ValueError:
-    # thrown if the user doesn't enter an integer
-    print("Not a valid selection, exiting...")
-    exit(1)
-except KeyboardInterrupt:
-    # cleanly exits if the user hit control+c
-    print("")
-    exit(0)
-
-# verify the selection is within range
-if selection < 0 or selection > 6:
-    print("Selection is out of range, please select 1-7. Exiting...")
-    exit(1)
-
-# get the menu selection
-menu_selection = options[selection]
-
-# read the script
-with open(script_path, 'r') as file:
-    if no_strip:
-        # read as a string if we're not stripping
-        script = file.read()
-    else:
-        # read as an array if we're stripping
-        script_readlines = file.readlines()
-
-# if stripping empty lines and comments clean it up!
-if not no_strip:
-    script_array = []
-    for line in script_readlines:
-        # skip empty lines or commentted lines
-        if line == '\n': continue
-        if '#' in line:
-            no_space = line.replace(' ', '').replace('\t', '')
-            if no_space.startswith('#!'):
-                pass
-            else:
-                continue
-        line.startswith('#')
-        script_array.append(line)
-    script = ''.join(script_array)
-
-# properly escape the script for XML
-escaped_script = escape(script.strip())
-
-# build the plist script
-plist_out = """<key>{0}</key>
+# !Plist template
+PLIST_TMP = """<key>{0}</key>
 <string>{1}
-</string>""".format(menu_selection, escaped_script)
+</string>"""
 
-print(plist_out)
 
-# copy the plist script to the clipboard for pasting into the pkginfo file
-task = subprocess.Popen(
-    '/usr/bin/pbcopy',
-    env={'LANG': 'en_US.UTF-8'},
-    stdin=subprocess.PIPE
-)
-task.communicate(
-    plist_out.encode('utf-8')
-)
+if '--help' in argv or '-h' in argv:
+    _help()
+
+# !Script setup
+# get the script path
+SCRIPT_PATH = argv[-1]
+
+# validate that the script path isn't this script
+if SCRIPT_PATH == argv[0]:
+    print("Missing the script file.\n")
+    _help(1)
+
+# verify the path is to a file
+if not os.path.isfile(SCRIPT_PATH):
+    print(f"{SCRIPT_PATH} doesn't appear to be a valid file.\n")
+    _help(1)
+
+# --skip-strip, -ss will skip stripping comments and empty lines
+if '--skip-strip' in argv or '-ss' in argv:
+    SKIP_STRIP = True
+else:
+    SKIP_STRIP = False
+
+# --select-type, -st will force script type selection instead of guessing
+if '--select-type' in argv or '-st' in argv:
+    SELECT_TYPE = True
+else:
+    SELECT_TYPE = False
+
+main()
