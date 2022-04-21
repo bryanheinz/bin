@@ -1,179 +1,319 @@
-#!/usr/bin/python
-"""Update CloudFlare A records with external IP."""
-import sys
+#!/usr/bin/env python3
+
+
+"""
+Update CloudFlare A records with your external IP.
+"""
+
+
+import os
 import json
-import urllib
-import httplib
-from pprint import pprint
-
-email = '' # cloudflare@example.com
-key = '' # API key from https://www.cloudflare.com/a/account/my-account found at the bottom of my settings
-push_key = '' # Pushover API key
-push_app_token = '' # Pushover app token
-
-zones = {
-    '': [] # 'zone.com': ['sub.zone.come']
-}
+import getpass
+import logging
+import pathlib
+import requests
 
 
-def loggy(msg):
-    print(msg)
-
-def api_call(params, path):
-    """Runs GET API commands on Cloudflare."""
-    params = urllib.urlencode(params)
-    headers = {
-        "Content-type":"application/json",
-        "X-Auth-Email":email,
-        "X-Auth-Key":key
-    }
-    conn = httplib.HTTPSConnection("api.cloudflare.com")
-    conn.request("GET", "/client/v4/{0}".format(path), params, headers)
-    response = conn.getresponse()
-    data = response.read().decode('utf-8')
-    json_data = json.loads(data)
-    return(json_data)
-
-def get_zone_id(zone):
-    """Gets the ID of the subdomain."""
-    json_data = api_call({}, 'zones')
-    for _ in json_data['result']:
-        if _['name'] == zone:
-            return(_['id'])
-
-def get_subdomain_ip(zone, subdomain):
-    """Get subdomain's A record."""
-    zone_id = get_zone_id(zone)
-    a_records = api_call(
-        {
-            'type':'A',
-        },
-        "zones/{0}/dns_records".format(zone_id)
-    )
+class CFSettings:
+    """
+    This class handles creating and reading settings for this script.
+    """
+    def __init__(self):
+        self.cf_token = '' # CloudFlare Token
+        self.push_user_key = '' # Pushover API key
+        self.push_app_token = '' # Pushover app token
+        self.zones = {} # {'zone.com': ['sub.zone.come']}
+        
+        self.cf_settings_path = pathlib.Path(
+            f'/Users/{getpass.getuser()}/.cf_settings')
+        
+        if self.cf_settings_path.is_file():
+            self.read_settings()
+        else:
+            self.create_settings()
     
-    for _ in a_records['result']:
-        if _['name'] == subdomain:
-            return(_['content'], _['id'])
-
-def get_home_ip():
-    """Checks ifconfig.co to get your external IP."""
-    req = httplib.HTTPConnection('ifconfig.co')
-    req.request('GET', '/json')
-    response = req.getresponse()
-    data = response.read().decode('utf-8')
-    return(json.loads(data)['ip'])
-
-def update_dns_record(home, subdomain, sub_id, zone):
-    """Update subdomain's A record with external IP address."""
-    params = json.dumps(
-        {
-            'type':'A',
-            'name':subdomain,
-            'content':home
+    def create_settings(self):
+        """
+        This function creates a settings file if one isn't found.
+        """
+        print("Create a CloudFlare Token")
+        print("https://dash.cloudflare.com/profile/api-tokens")
+        print("My Profile -> API Tokens -> Create Token -> Edit Zone DNS template")
+        print("Permissions: Zone:DNS:Edit")
+        print("Zone Resources: Include:All/Specific:[ZONE]")
+        self.cf_token = input("Paste CF token > ")
+        
+        print("\nCreate a Pushover Token")
+        print("https://support.pushover.net/i175-how-do-i-get-an-api-or-application-token")
+        self.push_user_key = input("Pushover User Key > ")
+        self.push_app_token = input("Pushover App Token > ")
+        
+        print("\nEnter a space separated list of zones.")
+        print("E.g. 'example1.com example2.com example3.com'")
+        zones_in = input("Zones > ")
+        zones = zones_in.strip("'").split(' ')
+        
+        print("\n Enter a space separated list of domains to update for each zone.")
+        print("E.g. 'sub1.example1.com sub2.example1.com example1.com'")
+        for z in zones:
+            zone_domains_in = input("Domains > ")
+            zone_domains = zone_domains_in.strip("'").split(' ')
+            self.zones[z] = zone_domains
+        
+        cf_settings = {
+            'cf_token': self.cf_token,
+            'push_user_key': self.push_user_key,
+            'push_app_token': self.push_app_token,
+            'zones': self.zones
         }
-    )
-    headers = {
-        "Content-type":"application/json",
-        "X-Auth-Email":email,
-        "X-Auth-Key":key
+        
+        with open(self.cf_settings_path, 'w') as file:
+            os.chmod(self.cf_settings_path, 0o600)
+            json.dump(cf_settings, file)
+    
+    def read_settings(self):
+        """
+        This function reads the settings file into memory.
+        """
+        with open(self.cf_settings_path, 'r') as file:
+            settings = json.load(file)
+        self.cf_token = settings['cf_token']
+        self.push_user_key = settings['push_user_key']
+        self.push_app_token = settings['push_app_token']
+        self.zones = settings['zones']
+
+class CFAPI:
+    """
+    This class handles interacting with CloudFlare's API.
+    """
+    def __init__(self):
+        self.base_url = 'https://api.cloudflare.com/client/v4'
+        self.headers = {
+            'Authorization': f'Bearer {CFS.cf_token}',
+            'Content-Type': 'application/json'
+        }
+        self.zone_info = None
+        self.zone_dns = {}
+    
+    def api_req(self, endpoint, **api_req_args):
+        """
+        CloudFlare wrapper for _api_req. See _api_req for details.
+        """
+        url = ''.join([self.base_url, endpoint])
+        return _api_req(url, headers=self.headers, **api_req_args)
+    
+    def cf_get_zone_info(self):
+        """
+        Returns an array of CloudFlare Zone dictionaries.
+        """
+        return self.api_req('/zones').get('result', [])
+    
+    def get_zone_id(self, zone):
+        """
+        Returns a string of the input zone's ID.
+        """
+        # Get zone_info if it hadn't been previously gathered.
+        if not self.zone_info:
+            self.zone_info = self.cf_get_zone_info()
+        for result in self.zone_info:
+            if result.get('name', '') == zone:
+                return result.get('id')
+        zone_err = f"Error getting zone ID for {zone}"
+        logg.error(zone_err)
+        pushover("[ERRORS] CloudFlare DNS", zone_err)
+        exit(1)
+    
+    def cf_get_zone_dns(self, zone):
+        """
+        Returns an array of zone dictionaries the API key has access to.
+        """
+        # check if zone_dns is set, return it if it is, otherwise get it
+        zone_dns = self.zone_dns.get(zone)
+        if zone_dns: return zone_dns
+        zone_id = self.get_zone_id(zone)
+        zone_dns = self.api_req(
+            f'/zones/{zone_id}/dns_records', params={'type':'A'}) \
+            .get('result', [])
+        self.zone_dns[zone] = zone_dns
+        return zone_dns
+    
+    def get_domain_info(self, zone, domain):
+        """
+        Returns an array containing a domain's ID and IP address record.
+        """
+        zone_dns = self.cf_get_zone_dns(zone)
+        for d in zone_dns:
+            if d.get('name', '') == domain:
+                return [d.get('id'), d.get('content')]
+        dom_err = f"Error getting domain info for {domain}"
+        logg.error(dom_err)
+        pushover("[ERRORS] CloudFlare DNS", dom_err)
+        exit(1)
+    
+    def cf_update_dns_record(self, zone, dom_id, domain):
+        """
+        Update subdomain's A record with your external IP address.
+        """
+        zone_id = self.get_zone_id(zone)
+        data = {
+            'type': 'A',
+            'name': domain,
+            'content': EXTERNAL_IP,
+            'ttl': 1
+        }
+        resp = self.api_req(
+            f'/zones/{zone_id}/dns_records/{dom_id}',
+            method='PUT',
+            jdata=data)
+        if resp.get('success'):
+            logg.info("Updated %s IP to %s", domain, EXTERNAL_IP)
+
+
+def setup_logg(log_level):
+    """
+    This function sets up logging.
+    """
+    log_path = pathlib.Path(f'/Users/{getpass.getuser()}/Library/Logs/cf.log')
+    formatter = logging.Formatter(
+        '%(funcName)s:%(lineno)d <%(levelname)s> - %(message)s')
+    cHandler = logging.StreamHandler()
+    cHandler.setFormatter(formatter)
+    fHandler = logging.FileHandler(log_path)
+    fHandler.setFormatter(formatter)
+    loggy = logging.getLogger('cf')
+    loggy.setLevel(log_level)
+    loggy.addHandler(cHandler)
+    loggy.addHandler(fHandler)
+    return loggy
+
+def _api_req(
+    url, method='GET', headers=None, params=None, data=None, jdata=None):
+    """
+    Wrapper function for the Python Requests module.
+    
+    https://docs.python-requests.org/en/latest/api/
+    
+    NOTE: this function will cause this script to exit 1 if there's an error
+          with the request.
+    
+    Parameters:
+        url      (Str):  The URL for Requests to call.
+        method   (Str):  Accepts all Python Requests' methods.
+        params   (Dict): URL parameters.
+        data     (Dict): Data to send to the API.
+        jdata    (Dict): Data to send to the API as JSON data.
+    
+    Returns:
+        response (JSON): a JSON dictionary if the patch was successful.
+    """
+    # build and send the request
+    sesh = requests.Session()
+    req = requests.Request(
+        method, url, headers=headers, params=params, data=data, json=jdata)
+    prepped = sesh.prepare_request(req)
+    resp = sesh.send(prepped)
+    
+    # validate and return the response
+    resp_code = resp.status_code
+    
+    if resp_code != 200:
+        resp_txt = resp.text
+        logg.error("--- * ---")
+        logg.error(resp_txt)
+        logg.error("Sent data:\n%s", data)
+        logg.error("Error with call: %s", resp_code)
+        logg.error("--- * ---")
+        if 'pushover' in url:
+            logg.error("Error sending push.")
+            exit(1)
+        pushover(
+            "[ERRORS] CloudFlare DNS",
+            f"Error making API call.\nURL: {url}\nResponse: {resp_txt}\nCode: {resp_code}"
+        )
+        exit(1)
+    
+    return resp.json()
+
+def get_external_ip():
+    """
+    Checks ifconfig.co to get your external IP.
+    """
+    req = requests.get('https://ifconfig.co/json')
+    ip_data = req.json()
+    external_ip = ip_data.get('ip')
+    logg.debug("External IP: %s", external_ip)
+    return external_ip
+
+def pushover(title, msg):
+    """
+    Sends a push notification using the Pushover service.
+    """
+    url = 'https://api.pushover.net/1/messages.json'
+    headers = {'Content-type': 'application/x-www-form-urlencoded'}
+    data = {
+        'user': CFS.push_user_key,
+        'token': CFS.push_app_token,
+        'title': title,
+        'message': msg,
     }
-    conn = httplib.HTTPSConnection("api.cloudflare.com")
-    conn.request("PUT",
-        "/client/v4/zones/{0}/dns_records/{1}".format(get_zone_id(zone), sub_id),
-        params,
-        headers
-    )
-    response = conn.getresponse()
-    data = response.read().decode('utf-8')
-    json_data = json.loads(data)
-    loggy("")
-    loggy("updated IP.")
-    pprint(json_data)
-    loggy("")
+    _api_req(url, method='POST', headers=headers, data=data)
 
-def results(error_dict, changed_domains):
-    error_list = ["Errors:"]
+def main():
+    """
+    The main script function.
+    """
+    errors = []
+    updated_domains = []
     
-    dom_list = '\n'.join(changed_domains)
+    # Loop through zones and zone domains, compare IPs, and update if needed.
+    for zone in CFS.zones.keys():
+        for dom in CFS.zones[zone]:
+            try:
+                dom_id, dom_ip = CF_API_OBJ.get_domain_info(zone, dom)
+                if dom_ip == EXTERNAL_IP: continue
+                CF_API_OBJ.cf_update_dns_record(zone, dom_id, dom)
+                updated_domains.append(dom)
+            except Exception as ee:
+                logg.error(ee)
+                errors.append(f"{dom}: {ee}")
     
-    if error_dict != {}:
-        for sub in error_dict.keys():
-            error_list.append("{0}\n\t{1}".format(sub, error_dict[sub]))
-        err_list = '\n'.join(err_list)
-        push_msg = "{0}\nUpdated Domains:\n{1}".format(err_list, dom_list)
-    else:
-        push_msg = "Updated Domains:\n{0}".format(dom_list)
-    
-    pushover(push_msg)
-
-def pushover(msg):
-    if push_key == '' or push_app_token == '':
-        # if the push key or app token isn't set, just skip.
-        loggy("Pushover not configured, skipping.")
+    # If Pushover is configured and there were updates or errors, then build a
+    # report and send a push notification.
+    if CFS.push_user_key == '' or CFS.push_app_token == '':
+        logg.debug("Pushover not configured, skipping.")
         return
     
-    conn = httplib.HTTPSConnection("api.pushover.net:443")
-    conn.request("POST", "/1/messages.json",
-        urllib.urlencode({
-            "token": push_app_token,
-            "user": push_key,
-            "message": msg,
-        }), { "Content-type": "application/x-www-form-urlencoded" })
-    conn.getresponse()
-
-def main(zone, subdomain):
-    changes = False
-    errors = False
-    error_msg = ''
-
-    try:
-        home_ip = get_home_ip()
-        sub_ip, sub_id = get_subdomain_ip(zone, subdomain)
-    except:
-        e = sys.exc_info()
-        loggy("error trying to get home IP or domain information.")
-        errors = True
-        error_msg = "error trying to get home IP or domain information.\n{0}".format(e)
-        return(changes, errors, error_msg)
+    if errors == [] and updated_domains == []:
+        logg.debug("No changes or errors.")
+        return
     
-    if home_ip == sub_ip:
-        # IPs are the same.
-        return(changes, errors, error_msg)
+    if errors:
+        push_title = "[ERRORS] CloudFlare DNS"
     else:
-        try:
-            # DNS record was cleanly updated.
-            update_dns_record(home_ip, subdomain, sub_id, zone)
-            changes = True
-            return(changes, errors, error_msg)
-        except:
-            e = sys.exc_info()
-            loggy("error updating the DNS records.")
-            errors = True
-            error_msg = "error updating the DNS records.\n{0}".format(e)
-            return(changes, errors, error_msg)
+        push_title = "CloudFlare DNS"
     
-    errors = True
-    error_msg = "Unknown error. Returning at end of main."
-    return(changes, errors, error_msg)
+    updated_dom_txt = '\n\t'.join(updated_domains)
+    update_msg = f"Updated the following domains:\n\t{updated_dom_txt}"
+    err_txt = '\n\t'.join(errors)
+    err_msg = f"Errors:\n\t{err_txt}"
+    
+    push_msg = f"{update_msg}\n\n{err_msg}"
+    pushover(push_title, push_msg)
 
 
-changes = False
-errors = False
-error_dict = {} # {'subdomain':'error msg'}
-changed_domains = []
 
-for zone in zones.keys():
-    for sub in zones[zone]:
-        changed, errored, error_msg = main(zone, sub)
-        if changed:
-            changes = True
-            changed_domains.append(sub)
-        if errored:
-            errors = True
-            error_dict[sub] = error_msg
+CFS = CFSettings()
+CF_API_OBJ = CFAPI()
 
-if changes or errors:
-    loggy("Changes or errors, sending push...")
-    results(error_dict, changed_domains)
-else:
-    loggy("No changes or errors.")
+logg = setup_logg(logging.INFO)
+
+EXTERNAL_IP = get_external_ip()
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as e:
+        logg.error("Undefined error:\n%s", e)
+        pushover("[ERRORS] CloudFlare DNS", f"Undefined error:\n{e}")
+        exit(1)
