@@ -24,10 +24,10 @@ def convert_nested_dict(dict_data):
     return new_dict
 
 parser = argparse.ArgumentParser()
-parser.add_argument('dir', help="Path to panic log to parse.")
+parser.add_argument('panic_log', help="Path to panic log to parse.")
 args = parser.parse_args()
 
-panic_log = pathlib.Path(args.dir)
+panic_log = pathlib.Path(args.panic_log)
 panic_log_dir = panic_log.parent
 panic_log_cleaned = panic_log_dir / f"CLEAN-{panic_log.name}"
 
