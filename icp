@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 import os
 import getpass
 import subprocess
@@ -36,10 +36,10 @@ if not os.path.exists(icns_path):
 # skips ICNS file check if -f is in the arguments
 if '-f' not in argv:
     # read the input file, verify it's an icns file
-    file = open(icns_path, 'r')
+    file = open(icns_path, 'rb')
     data = file.readlines()
     file.close()
-    if 'icns' not in data[0]:
+    if b'icns' not in data[0]:
         print("\nThe supplied file doesn't appear to be an ICNS file.")
         print_help()
 
