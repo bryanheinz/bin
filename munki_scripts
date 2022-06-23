@@ -45,21 +45,22 @@ def get_script_type():
     selection = None
     
     if SELECT_TYPE is False:
-        for o in options:
+        for o in OPTIONS:
             if o not in SCRIPT_PATH: continue
-            selection = options.index(o)
+            selection = OPTIONS.index(o)
+            break
     
     if selection is None:
         selection = choose_script_type()
     
-    return options[selection]
+    return OPTIONS[selection]
 
 def choose_script_type():
     try:
         # print the 'menu' of options
         print("Please choose a number from the following options:")
-        for o in options:
-            print(f"    {options.index(o)+1}. {o}")
+        for o in OPTIONS:
+            print(f"    {OPTIONS.index(o)+1}. {o}")
         print('')
         # get the user's input and convert the selection to an integer
         # -1 from the selection to convert the selection from user input to an index
@@ -122,7 +123,7 @@ def copy_to_clipboard(plist_out):
 
 
 # !Munki script types
-options = [
+OPTIONS = [
     'installcheck_script',
     'uninstallcheck_script',
     'postinstall_script',
