@@ -1,47 +1,64 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
+
+import re
+import sys
 import time
+import argparse
 import subprocess
-from sys import argv
 
-switches = argv
 
-def switch(item):
-    index = switches.index(item) + 1
-    return(switches[index])
+# TODO: switch to using `-oG -` or `-oX -` for output to make parsing better
+# TODO: add exit on successful open port or alternative exit 2 on closed port
 
-def h():
-    print("")
-    print("Requires nmap to be installed.")
-    print("Usage: host-check --port 22 --ip 127.0.0.1 --delay 30")
-    print("\t--port  [n]   specifies the port (e.g. 22)")
-    print("\t--ip    [ip]  specifies the IP address (e.g. 127.0.0.1)")
-    print("\t--dns   [dns] specifies the DNS name (e.g. google.com)")
-    print("\t--delay [5]   specifies the seconds between each check")
-    print("")
-    exit()
 
-if '-h' in switches or '--help' in switches or len(switches) < 5:
-    h()
-if '--port' in switches:
-    port = switch('--port')
-if '--ip' in switches:
-    address = switch('--ip')
-if '--dns' in switches:
-    address = switch('--dns')
-if '--delay' in switches:
-    delay = int(switch('--delay'))
-else:
-    delay = 5
+def arg_parser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-a', '--address', required=True,
+        help="Address to scan.")
+    parser.add_argument('-p', '--port', required=True,
+        help="Port to scan.")
+    parser.add_argument('-d', '--delay', default=5,
+        help="Delay between running scans.")
+    return parser.parse_args()
 
-try:
-    cmd = ['nmap', '-Pn', '-p', port, address]
-except NameError:
-    pass
-
-while True:
+def nmap(cmd):
+    
     try:
-        subprocess.call(cmd)
-        time.sleep(delay)
-    except KeyboardInterrupt:
-        break
-print("")
+        comp = subprocess.run(cmd, capture_output=True, check=True)
+        output = comp.stdout.decode('utf-8').splitlines()
+        date_stamp, port_status = parse_output(output)
+        print(f"{date_stamp}: {port_status}")
+    except FileNotFoundError as e:
+        if 'nmap' in str(e):
+            print("Couldn't find nmap. Please make sure that it's installed.")
+        else:
+            print("Unknown error:")
+            print(e)
+        sys.exit(1)
+
+def parse_output(output):
+    re_date_time = r'\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}'
+    port_status = None
+    idex = 1
+    for line in output:
+        if 'PORT' in line and 'STATE' in line:
+            port_status_line = output[idex].split(' ')
+            port_status_line = [x for x in port_status_line]
+            port_status = port_status_line[1]
+            break
+        idex += 1
+    date_stamp = re.search(re_date_time, output[0]).group()
+    return date_stamp, port_status
+
+def main():
+    args = arg_parser()
+    while True:
+        try:
+            nmap(['nmap', '-Pn', '-p', args.port, args.address])
+            time.sleep(args.delay)
+        except KeyboardInterrupt:
+            break
+    print("")
+
+if __name__ == '__main__':
+    main()
