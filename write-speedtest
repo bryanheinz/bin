@@ -52,14 +52,31 @@ def main():
         epoch_now = int(time.time())
         file_path = ARGS.destination / f'_test.{epoch_now}.{count}'
         CREATED_FILES.append(file_path)
+        
+        # copying from a remote network share to the local computer gives an
+        # accurate result the first time, but subsequent runs appear to be using
+        # some cache somewhere. commenting out input selection until this is
+        # figured out.
+        # dd_cmd = [
+        #     'dd',
+        #     f'if={ARGS.input}',
+        #     f'of={file_path}',
+        #     'bs=1000000'
+        # ]
+        # if str(ARGS.input) == '/dev/zero':
+        #     dd_cmd.append(f'count={ARGS.size}')
+        
+        dd_cmd = [
+            'dd',
+            'if=/dev/zero',
+            f'of={file_path}',
+            'bs=1000000',
+            f'count={ARGS.size}'
+        ]
+        
         try:
-            comp = subprocess.run([
-                    'dd',
-                    'if=/dev/zero',
-                    f'of={file_path}',
-                    'bs=1000000',
-                    f'count={ARGS.size}'
-                ],
+            comp = subprocess.run(
+                dd_cmd,
                 capture_output=True,
                 check=True
             )
