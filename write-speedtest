@@ -1,103 +1,124 @@
-#!/usr/bin/env python
-import subprocess, os
-from decimal import *
-from sys import argv
+#!/usr/bin/env python3
 
-try:
-    switches = argv
-except ValueError:
-    switches = "none"
+"""
+This script writes several files to a destination using the dd CLI tool. It'll average and report the write speed to give you an idea of your write speeds.
+"""
 
-if '-h' in switches or '--help' in switches:
-    print("")
-    print("Usage: write-speedtest [options]")
-    print("\t--raw prints the bytes per second")
-    print("\t--size [n] changes the file size in megabytes (default is 500MB)")
-    print("\t--path [s] sets the path to test the disk speed")
-    print("\t--tests [n] changes how many tests to run (default is 5 test files)")
-    print("")
-    exit(0)
+import re
+import sys
+import time
+import atexit
+import pathlib
+import argparse
+import subprocess
 
-### varibles ###
 
-tests = 5
-file_size = 500
+# default how many files to create
+TEST_COUNT = 5
+# default size of each test file (in MegaBytes)
+TEST_SIZE  = 100
 
-# tests are how many test files get run
-# file_size is the size of eatch test file
-# file_size example, 50 = 50MB 500 = 500MB files
 
-################
+def arg_parser():
+    parser = argparse.ArgumentParser(
+        prog="write-speedtest",
+        description=f"""
+        Speedtest writing files. This script will write several
+        files to a destination to get the average speed of writing that file
+        size. By default, it writes {TEST_COUNT}x {TEST_SIZE} MegaByte files.
+        """,
+        epilog="example: %(prog)s -s 256 -t 10 /Volumes/network-home"
+    )
+    parser.add_argument('destination', metavar='TEST_PATH', type=pathlib.Path,
+        help="The destination to write speed test.")
+    # parser.add_argument('-i', '--input', metavar='FILE_PATH',
+    #     required=False, default='/dev/zero', type=pathlib.Path,
+    #     help="Specify the input file to test writing out. (%(default)s).")
+    parser.add_argument('-s', '--size', metavar='[n]',
+        required=False, default=TEST_SIZE, type=int,
+        help="The file size in megabytes for each test file (%(default)s).")
+    parser.add_argument('-t', '--tests', metavar='[n]',
+        required=False, default=TEST_COUNT, type=int,
+        help="How many test files to write (%(default)s).")
+    parser.add_argument('-v', '--verbose', required=False, action='store_true',
+        help="Verbose output.")
+    return parser.parse_args()
 
-if "--size" in switches:
-    switch_index = switches.index('--size') + 1
-    file_size = int(switches[switch_index])
-    print("\nCreating " + str(file_size) + " MB files...")
-if "--tests" in switches:
-    switch_index = switches.index('--tests') + 1
-    tests = int(switches[switch_index])
-    print("Creating " + str(tests) + " test files...")
-if '--input' in switches:
-    switch_index = switches.index('--input') + 1
-    zero = switches[switch_index]
-    print("Using the input file: {0}".format(zero))
-
-count = 0
-times = []
-file_list = []
-speed_list = []
-
-if '--path' in switches:
-    switch_index = switches.index('--path') + 1
-    file_path = switches[switch_index]
-else:
-    file_path = raw_input('\nPlease specify a path> ').strip()
-
-if os.path.isdir(file_path) == True:
-    if file_path[-1] != "/":
-        file_path = file_path + "/"
-        print("")
-    elif file_path[-1] == "/":
-        print("")
+def main():
+    count = 0
+    times = []
+    
+    while count < ARGS.tests:
+        epoch_now = int(time.time())
+        file_path = ARGS.destination / f'_test.{epoch_now}.{count}'
+        CREATED_FILES.append(file_path)
+        try:
+            comp = subprocess.run([
+                    'dd',
+                    'if=/dev/zero',
+                    f'of={file_path}',
+                    'bs=1000000',
+                    f'count={ARGS.size}'
+                ],
+                capture_output=True,
+                check=True
+            )
+        except KeyboardInterrupt:
+            # this lets someone break out of the command and get the current
+            # speeds if it's taking too long.
+            break
+        # dd outputs to STDOUT for some reason. hopefully this check will catch if
+        # that ever changes or is different on Linux.
+        if comp.stdout:
+            dd_output = comp.stdout.decode('utf-8').strip()
+        else:
+            dd_output = comp.stderr.decode('utf-8').strip()
+        
+        # use regex to find the digits we might care about
+        dd_search = re.search(r'(\d+) bytes transferred \D*?(\d+\.?\d+)\D*(\d+)\D*', dd_output)
+        bytes_write_speed = dd_search.group(3)
+        times.append(bytes_write_speed)
+        
+        print(f"{count+1}. {bytes_write_speed} bytes a second")
+        if ARGS.verbose:
+            print(dd_search.group(0), '\n')
+        
+        file_path.unlink()
+        count += 1
+    
+    total_time = 0
+    for i in times:
+        total_time += int(i)
+    
+    raw_average = total_time / len(times)
+    # assuming that if it's less than 1000000, then it's in megabits
+    if raw_average < 1000000:
+        mbyte = round(int(raw_average) / 125000, 2)
+        average_mb = f"{mbyte} Mb/s"
     else:
-        print("\nOh noes, / error.\n")
-else:
-    print("\nThe specified path doesn't appear to be a folder, exiting...")
-    exit(0)
+        mbyte = round(int(raw_average) / 1000000, 2)
+        average_mb = f"{mbyte} MB/s"
+    
+    print(f"\nAverage speed: {average_mb}")
+    if ARGS.verbose:
+        print(f"Average bytes speed: {raw_average}")
 
-while count < tests:
-    file = file_path + "file" + str(count)
-    file_list.append(file + ".out")
-    cmd = ['dd', 'if=/dev/zero', 'of={0}.out'.format(file),
-        'bs=1000000', 'count={0}'.format(file_size)]
-    raw_output = subprocess.Popen(cmd, stderr=subprocess.PIPE)
+@atexit.register
+def cleanup():
+    for i in CREATED_FILES:
+        if i.exists():
+            i.unlink()
 
-    output = raw_output.stderr.read().strip()
-    speed_string = output.split(" ")[-2].replace("(", "")
-    speed = (str(Decimal(speed_string)/1000/1000)) + " MB/s"
-    speed_list.append(speed)
-    if "--raw" in switches:
-        print(speed_string)
-    times.append(speed_string)
-    print(speed)
-    print("")
+# size example, 50 = 50MB 500 = 500MB files
 
-    count += 1
-
-sum = 0
-for _ in times:
-    sum = sum + int(_)
-raw_average = sum/len(times)
-if raw_average < 1000000: # fixes the average from becoming 0MB
-    mb = int(raw_average)/125000
-    average_mb = "{0} Mb/s".format(str(mb))
-else:
-    mb = int(raw_average)/1000000
-    average_mb = "{0} MB/s".format(str(mb))
-
-if "--raw" in switches:
-    print("Average raw speed: " + str(raw_average))
-print("Average speed: " + average_mb)
-
-for _ in file_list:
-    os.unlink(_)
+if __name__ == '__main__':
+    CREATED_FILES = []
+    ARGS = arg_parser()
+    
+    if ARGS.destination.is_dir() is False:
+        print("\nThe specified path doesn't appear to be a directory, exiting...")
+        sys.exit(1)
+    
+    print("\n", f"Creating {ARGS.tests}x {ARGS.size} MB files...")
+    
+    main()
