@@ -1,67 +1,134 @@
 #!/usr/bin/env python3
+
+"""Convert .icns files to .png."""
+
 import os
+import sys
 import getpass
+import pathlib
+import argparse
+import plistlib
 import subprocess
-from sys import argv
 
-def print_help():
-    print("")
-    print("This utility converts ICNS files to PNG.")
-    print("Usage:\t icp [icns path] [-f] [-o /path/to/]")
-    print("Example: icp ~/Downloads/1Password.icns -f -o ~/Documents/icons/")
-    print("Options:")
-    print("\t-f\t\tSkips ICNS file check and forces the conversion to PNG.")
-    print("\t-o [path]\tSpecifies the output path to convert the icon to.")
-    print("\t-h\t\tPrints this help document.")
-    print("")
-    exit()
 
-if '-h' in argv or '--help' in argv or len(argv) == 1:
-    print_help()
+def print_warn(msg):
+    print('\033[93m', f"\n{msg}\n", '\033[0m')
+def print_err(msg):
+    print('\033[31m', f"\n{msg}\n", '\033[0m')
 
-# get icns input, setuo output path
-try:
-    icns_path = argv[1]
-    root, ext = os.path.splitext(icns_path)
-    base_path, file_name = os.path.split(root)
-    out_path = root + ".png"
-except IndexError:
-    print_help()
+def arg_parser():
+    parser = argparse.ArgumentParser(
+        description="This utility converts ICNS files to PNG.",
+        epilog="Example: icp ~/Downloads/1Password.icns -f -o ~/Documents/icons/")
+    parser.add_argument('input_path', type=pathlib.Path,
+        help="The path to the .icns file to convert.")
+    parser.add_argument('-f', '--force', required=False, action='store_true',
+        help="Forces the conversion to PNG, skipping the file checks.")
+    parser.add_argument('-o', '--output', required=False, type=pathlib.Path,
+        help="Specify a path to save the converted PNG to.")
+    return parser.parse_args(), parser
 
-# verifies if the file exists
-if not os.path.exists(icns_path):
-    print("\nFile not found.")
-    print_help()
+def app_icns_finder():
+    """Finds an applications bundle's icon."""
+    app_contents_fp = ARGS.input_path / 'Contents'
+    app_info_fp = app_contents_fp / 'Info.plist'
+    
+    with open(app_info_fp, 'rb') as fh:
+        plist = plistlib.load(fh)
+    
+    icns_fn = plist.get('CFBundleIconFile', '')
+    icns_fp = app_contents_fp / 'Resources' / icns_fn
+    
+    if not icns_fp.is_file():
+        print_warn("Couldn't find the icon file. .icns path please.")
+        icns_fp = input('> ')
+        
+        if '\\ ' in icns_fp:
+            icns_fp = icns_fp.replace('\\ ', ' ')
+        
+        icns_fp = pathlib.Path(icns_fp.strip())
+    
+    return icns_fp
 
-# skips ICNS file check if -f is in the arguments
-if '-f' not in argv:
-    # read the input file, verify it's an icns file
-    file = open(icns_path, 'rb')
-    data = file.readlines()
-    file.close()
-    if b'icns' not in data[0]:
-        print("\nThe supplied file doesn't appear to be an ICNS file.")
-        print_help()
+def validation_check(icns_fp):
+    """Validate the input and output file paths."""
+    def validate_input(icns_fp):
+        """Validate the input file exists."""
+        if icns_fp.is_file():
+            return True
+        else:
+            print_err("\nInput file doesn't appear to be a file.\n")
+            return False
+    def validate_icns_file(icns_fp):
+        """Validate the input file is an .icns file."""
+        if ARGS.force is True:
+            return
+        with open(icns_fp, 'rb') as fh:
+            for line in fh:
+                if b'icns' in line:
+                    return True
+                print_err(
+                    "\nThe supplied file doesn't appear to be an ICNS file.\n")
+                return False
+    def validate_output():
+        """Validate the output path exists."""
+        if ARGS.output:
+            if ARGS.output.is_dir() is False:
+                print_err("Output path is either not a directory or not found.")
+                return False
+        return True
+    if validate_input(icns_fp) and validate_icns_file(icns_fp) and validate_output():
+        return
+    PARSER.print_help()
+    sys.exit(1)
 
-# sets up the output file path if -o is specified
-if '-o' in argv:
-    o_index = argv.index('-o') + 1 # get the specified path index
-    out_path = argv[o_index] # get the specified apth
-    if '.png' not in out_path: # check if it's a full filename
-        out_path = os.path.join(out_path, file_name + '.png') # if it's not a full filename, make it one
-    base_path = os.path.split(out_path)[0] # set the new base_path to verify it is writable
+def get_output_fp(icns_fp):
+    """Return the file path to save the converted PNG to."""
+    def test_write_access(fp):
+        """Check if the path has write access."""
+        # checks if the output folder is accessable
+        if os.access(fp, os.W_OK): return True
+        print_err(f"{fp} not accessable.")
+        return False
+    
+    output_fp = None
+    f_name = icns_fp.stem
+    
+    if ARGS.output:
+        if test_write_access(ARGS.output):
+            output_fp = ARGS.output / f'{f_name}.png'
+    else:
+        icns_parent = icns_fp.parent
+        if test_write_access(icns_parent):
+            output_fp = icns_parent / f'{f_name}.png'
+    
+    if output_fp is None:
+        print("Attempting to save to the Desktop.")
+        output_fp = f'/Users/{getpass.getuser()}/Desktop'
+    
+    return output_fp
 
-# checks if the output folder is accessable
-if not os.access(base_path, os.W_OK):
-    print("Output path not accessable. Attempting to save to the Desktop.")
-    base_path = '/Users/{0}/Desktop'.format(getpass.getuser())
-    out_path = os.path.join(base_path, file_name + '.png')
+def main():
+    if ARGS.input_path.suffix == '.app':
+        icns_fp = app_icns_finder()
+    else:
+        icns_fp = ARGS.input_path
+    
+    validation_check(icns_fp)
+    output_fp = get_output_fp(icns_fp)
+    
+    try:
+        subprocess.run(
+            ['sips', '-s', 'format', 'png', icns_fp, '--out', output_fp],
+            check=True, capture_output=True)
+        print(f"Saved file to {output_fp}")
+    except subprocess.CalledProcessError as e:
+        print_err(repr(e))
+        print_err(e.output)
+        print_err(e.stderr)
+    except Exception as e:
+        print_err(f"General exception:\n{e}")
 
-# convert the icns file to png
-cmd = ['sips', '-s', 'format', 'png', icns_path, '--out', out_path]
-task = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-out, err = task.communicate()
-if err:
-    print("Errors:\n\t{0}".format(err.strip()))
-else:
-    print("The PNG icon can be found at {0}.".format(out_path))
+if __name__ == '__main__':
+    ARGS, PARSER = arg_parser()
+    main()
