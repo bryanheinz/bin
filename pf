@@ -1,20 +1,29 @@
-#!/usr/bin/python
-import os
+#!/usr/bin/env python3
+
+"""
+This script renames the given script to postflight and makes it executable.
+"""
+
+import pathlib
+import argparse
 import subprocess
-from sys import argv
 
 
-try:
-    script, path = argv
-except:
-    print("Renames script to postflight and makes it executable.")
-    print("Usage: pf /path/to/script.py")
-    exit(0)
+def arg_parser():
+    parser = argparse.ArgumentParser(
+        prog="pf",
+        description="Renames script to postflight and makes it executable.",
+    )
+    parser.add_argument('script_path', type=pathlib.Path,
+        help="The path to a script that you want renamed.")
+    return parser.parse_args()
 
+def main():
+    root_dir = ARGS.script_path.parent
+    pf_path = root_dir / 'postflight'
+    ARGS.script_path.rename(pf_path)
+    subprocess.run(['/bin/chmod', '+x', pf_path], check=True)
 
-base_path = os.path.dirname(path)
-pf_path = os.path.join(base_path, 'postflight')
-cmd = ['/bin/chmod', '+x', pf_path]
-
-os.rename(path, pf_path)
-subprocess.call(cmd)
+if __name__ == '__main__':
+    ARGS = arg_parser()
+    main()
