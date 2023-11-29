@@ -4,59 +4,53 @@
 # Python 2.7.16
 # Python 3.7.3
 
-import getpass
+import argparse
 import logging
+import pathlib
 import subprocess
-from sys import argv
-from time import sleep
+
+__version__ = "2.0.0.1"
 
 
-__version__ = "1.1.1"
+class Pings:
+    sent = 0
+    received = 0
+    # an array of result averages
+    result = []
+    # max avrg list size before rolling the average
+    max_avrg = 1000
 
+def arg_parser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-p', '--packets', default=20,
+        help="How many packets to send.")
+    parser.add_argument('-l', '--loop', action='store_true',
+        help="Loops the pings until control-c is sent.")
+    parser.add_argument('--log', action='store_true',
+        help="Saves a persistant log to ~/Library/Logs/ping_test.log")
+    parser.add_argument('--log-path', dest='log_path', type=pathlib.Path,
+        help="Optional --log subcommand that overwrites the default log location.")
+    parser.add_argument('-a', '--addr', default='google.com',
+        help="The address to send the packets to. Can be an IP or FQDN. google.com is the default.")
+    return parser.parse_args()
 
-pts = "20" # packets to send
-host = "google.com"
-ps = 0 # total packets sent
-pr = 0 # total packets received
-avrg = [] # average ms list
-max_avrg = 1000 # max avrg list size before rolling the average
-
-
-def switch(item):
-    index = argv.index(item) + 1
-    return(argv[index])
-
-def helpr():
-    print("")
-    print("-h, --help\t\tprints this help menu")
-    print("-p, --packets [n]\thow many packets to send - 20 default")
-    print("-a, --addr [dns or ip]\taddress to send the packets - google.com default")
-    print("-l, --loop \t\tloops the pings until control-c")
-    print("--log \t\t\tSaves a persistant log to ~/Library/Logs/ping_test.log")
-    print("--path [path]\t\tOptional --log subcommand that overwrites the default")
-    print("\t\t\tlog location")
-    print("")
-    exit(0)
-
-
-def main(pts, host):
-    global ps
-    global pr
-    global avrg
+def main():
+    print(f"Pinging {ARGS.addr}")
     
-    cmd = ["ping", "-c", pts, host]
+    cmd = ["ping", "-c", str(ARGS.packets), ARGS.addr]
     
-    task = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    out, err = task.communicate()
+    comp = subprocess.run(cmd, capture_output=True, check=False)
+    out = comp.stdout.decode('utf-8')
+    err = comp.stderr.decode('utf-8')
     
-    if 'cannot resolve' in err.decode("utf-8"):
+    if 'cannot resolve' in err:
         print("cannot resolve host")
-        if '--log' in argv:
+        if ARGS.log:
             logging.info("cannot resolve host")
         return
     
     # get the ping results and split it into an array
-    results_split = out.decode("utf-8").split("\n")
+    results_split = out.split("\n")
     
     # setup a couple of vars
     speed_split = None
@@ -101,80 +95,68 @@ def main(pts, host):
             print("Setting average_speed to 'N/A'.\n***\n")
             average_speed = 'N/A'
     
-    info = """
+    info = """\x1b[1A\x1b[2K
 {0} packet loss
 {1}/{2} packets received
 {3} average latency
 """.format(packets_lost_percent, packets_received, packets_sent, average_speed)
     
+    # ! Info Dump
     print(info)
     
-    if '--log' in argv:
+    if ARGS.log:
         logging.info(info)
     
-    if "--loop" in argv or "-l" in argv:
+    if ARGS.loop:
         # if looping, this lets us add up how many packets are sent and received
-        ps += int(pts)
-        pr += int(packets_received)
+        pings.sent += int(ARGS.packets)
+        pings.received += int(packets_received)
         # if looping, this appends the average speed to an array for an overall
         # average
-        avrg.append(float(average_speed))
+        pings.result.append(float(average_speed))
         
         # this helps keep the average array from growing too large
         # once hitting the max_avrg, it will average the array and reset it with
         # the average up until the max_avrg was reached.
-        if len(avrg) == max_avrg:
+        if len(pings.result) == pings.max_avrg:
             roll_average()
 
+# TODO: refactor roll_average into the Pings class
 def roll_average():
-    global avrg
     # get the current overall average
     average = get_average()
     # reset avrg to the current overall average
-    avrg = [average]
+    pings.result = [average]
     # if keeping a persistant log, log this event
-    if '--log' in argv:
-        logging.info("Rolling average {}".format(average))
+    if ARGS.log:
+        logging.info(f"Rolling average {average}")
 
+# TODO: refactor get_average into the Pings class
 def get_average():
     # get the overall average for the avrg latency and return it
-    average = sum(avrg)/len(avrg)
-    return(
-        round(average , 2)
-    )
+    try:
+        average = sum(pings.result)/len(pings.result)
+    except ZeroDivisionError:
+        average = 0
+    return round(average , 2)
 
+# ! Script
+ARGS = arg_parser()
+pings = Pings()
 
-if "-h" in argv or "--help" in argv:
-    helpr()
-if "-p" in argv:
-    pts = switch("-p")
-elif "--packets" in argv:
-    pts = switch("--packets")
-if "-a" in argv:
-    host = switch("-a")
-elif "--addr" in argv:
-    host = switch("--addr")
-
-
-if '--log' in argv:
+# ! logging
+# TODO: refactor logging
+if ARGS.log:
     from datetime import datetime
     
-    today = datetime.now().strftime('%Y_%m_%d_%H%M%S')
-    lhost = host.replace('.', '_')
-    
-    if '--path' in argv:
-        import os
-        path_index = argv.index('--path')
-        lp = argv[path_index+1]
-        file_name = 'ping_test-{0}-{1}.log'.format(lhost, today)
-        fn = os.path.join(lp, file_name)
+    today = datetime.now().strftime('%Y%m%d.%H%M%S')
+    lhost = ARGS.addr.replace('.', '_')
+    file_name = f'ping_test.{lhost}.{today}.log'
+    if ARGS.log_path:
+        fn = ARGS.log_path / file_name
     else:
-        user = getpass.getuser()
-        fn = '/Users/{0}/Library/Logs/ping_test-{1}-{2}.log'.format(
-            str(user),
-            lhost,
-            today
-        )
+        log_dir = pathlib.Path(f'~/Library/Logs').expanduser()
+        fn = log_dir / file_name
     
     logging.basicConfig(
         filename=fn,
@@ -184,26 +166,38 @@ if '--log' in argv:
     )
     
     print("Saving log file to {0}".format(fn))
+    logging.info(f"Pinging {ARGS.addr} with {str(ARGS.packets)} packets.")
 
-
+# ! Main
 try:
-    if "--loop" in argv or "-l" in argv:
+    if ARGS.loop:
         while True:
-            main(pts, host)
+            main()
     else:
-        main(pts, host)
+        main()
         exit(0)
 except KeyboardInterrupt:
+    if not ARGS.loop: exit(0)
+    print("\x1b[2K\x1b[1A\x1b[2K\r-----")
+    # TODO: refactor into Pings
     average = get_average()
-    packets_lost = ps - pr
+    packets_lost = pings.sent - pings.received
+    # packet loss %
+    # =100-(100*19/20)
+    # 100-(100*packets received/packets sent)
+    try:
+        packet_loss_percent = round(100-(100 * pings.received / pings.sent), 2)
+    except ZeroDivisionError:
+        packet_loss_percent = 0
     info = """
 average latency: {0}ms
 total packets sent/received: {1}/{2}
 packets lost: {3}
-""".format(str(average), pr, ps, packets_lost)
+{4}% packet loss
+""".format(str(average), pings.received, pings.sent, packets_lost, packet_loss_percent)
     
     print(info)
     
-    if '--log' in argv:
+    if ARGS.log:
         logging.info(info)
     exit(0)
