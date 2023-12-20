@@ -11,6 +11,14 @@ import re
 import subprocess
 from sys import argv
 
+# ioreg -c AppleSmartBattery
+# "CurrentCapacity" = 98
+# "MaxCapacity" = 100
+# "DesignCapacity" = 6075
+# "AppleRawMaxCapacity" = 5298
+# "NominalChargeCapacity" = 5448
+# "AppleRawCurrentCapacity" = 5188
+
 # the file will be saved as 'file_report_path/battery_report_SERIAL.txt'
 file_report_path = '/private/tmp'
 
