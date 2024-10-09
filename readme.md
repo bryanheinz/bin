@@ -5,6 +5,18 @@ This repository is a collection of weird command line utilities that I've create
 
 `autopkg_search` is a CLI tool to search the [AutoPKG Index](https://github.com/autopkg/index). I created this because AutoPkg's built-in search uses Github's search. Github's own search doesn't index everything anymore.
 
+```
+usage: autopkg_search [-h] [--ignore-cache] [--case] search
+
+positional arguments:
+  search          The string to search for.
+
+options:
+  --ignore-cache  Ignores the cache and downloads a fresh copy of the index.
+                  The cache expires after 4 hours.
+  --case          Makes the search case sensitive.
+```
+
 ## b64
 b64 is used to quickly encode or decode base64 strings.
 
