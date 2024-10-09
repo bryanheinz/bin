@@ -1,0 +1,94 @@
+#!/usr/bin/env python3
+
+"""
+A script to search AutoPKG's index.
+"""
+
+import json
+import requests
+import argparse
+import pathlib
+from time import time
+
+# seconds until cache should be considered invalid – 14400 == 4 hours in seconds
+cache_expiration = 14400
+index_url = "https://raw.githubusercontent.com/autopkg/index/refs/heads/main/index.json"
+index_cache = pathlib.Path("/private/tmp/autopkg_index_cache.json")
+
+# ! argument parser
+parser = argparse.ArgumentParser(
+    description="Search AutoPkg's index for recipes.")
+parser.add_argument('search', help="The string to search for.")
+parser.add_argument('--ignore-cache', dest='ignore_cache', action='store_true',
+    help="Ignores the cache and downloads a fresh copy of the index. The cache expires after 4 hours.")
+parser.add_argument('--case', action='store_true',
+    help="Makes the search case sensitive.")
+args = parser.parse_args()
+
+def caseify(txt):
+    """Returns lower case text if running case insensitive searches."""
+    if args.case is True:
+        return txt
+    return txt.lower()
+
+# ! check index cache
+update_cache = True
+now = time()
+if index_cache.exists():
+    with open(index_cache, 'r') as fh:
+        data = json.load(fh)
+    epoch_expires = data.get('expires')
+    if epoch_expires and now < epoch_expires:
+        # cache is still valid, don't update it
+        update_cache = False
+
+if args.ignore_cache:
+    update_cache = True
+
+# ! download index
+if update_cache is True:
+    req = requests.get(index_url)
+    data = req.json()
+    # save a cache of the index so that we don't have to keep re-downloading it
+    data['expires'] = int(time() + cache_expiration)
+    with open(index_cache, 'w') as fh:
+        json.dump(data, fh)
+
+search = caseify(args.search)
+
+# ID, name, repo, path
+search_results: set[tuple] = set()
+for id, recipe_data in data['identifiers'].items():
+    id_case = caseify(id)
+    if search in id_case:
+        search_results.add((
+            id,
+            recipe_data['name'],
+            recipe_data['repo'],
+            recipe_data['path']
+        ))
+        continue
+    for key, value in recipe_data.items():
+        if key == 'children': continue
+        try:
+            value_case = caseify(value)
+            if search in value_case:
+                search_results.add((
+                    id,
+                    recipe_data['name'],
+                    recipe_data['repo'],
+                    recipe_data['path']
+                ))
+        except TypeError:
+            continue
+        except AttributeError:
+            continue
+        except Exception as e:
+            # debug code
+            print(e)
+            print(key, value)
+            print(json.dumps(data['identifiers'][id], indent=4))
+            exit(1)
+
+for result in search_results:
+    print(f"{result[0]}\n\t{result[1]}\n\t{result[2]}\n\t{result[3]}\n\thttps://github.com/{result[2]}\n")
