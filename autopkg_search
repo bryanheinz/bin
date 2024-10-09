@@ -4,11 +4,12 @@
 A script to search AutoPKG's index.
 """
 
-import json
-import requests
 import argparse
+import json
 import pathlib
 from time import time
+
+import requests
 
 # seconds until cache should be considered invalid – 14400 == 4 hours in seconds
 cache_expiration = 14400
