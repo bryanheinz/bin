@@ -1,0 +1,97 @@
+#!/usr/bin/env python3
+
+"""
+A simple script that takes an IP address as an argument and outputs the IP's ISP and location. If no argument is given, it prints your WAN IP.
+
+Uses https://ifconfig.co
+
+Example usage:
+    python3 ip-lookup.py 1.1.1.1
+    > ISP: CLOUDFLARENET
+    > Location:  , Australia
+    > IP Checked: 1.1.1.1
+    
+    python3 ip-lookup.py
+    > IP Address: 123.123.123.123
+"""
+
+import pathlib
+import json
+import ssl
+import urllib.request
+import urllib.parse
+from sys import argv
+from sys import exit as _exit
+
+
+# depending on how Python is installed on macOS, it might not find the CA file
+# this checks if a CA file path was loaded
+# if a path isn't loaded, it assumes macOS and the default macOS path
+if ssl.get_default_verify_paths().cafile is None:
+    # default CA path for at least macOS 15 and 26
+    macos_ca_file = pathlib.Path('/private/etc/ssl/cert.pem')
+    if macos_ca_file.exists() is False:
+        print("Error, CA File not found.")
+        print(ssl.get_default_verify_paths())
+        _exit(1)
+    # create default SSL context with the macOS CA
+    SSL_CONTEXT = ssl.create_default_context(cafile=macos_ca_file)
+else:
+    # create default SSL context with the default CA
+    SSL_CONTEXT = ssl.create_default_context()
+
+HEADERS={
+    'Accept':'application/json',
+    'User-agent': 'pyurllib/3'
+}
+
+def check_ip():
+    params = urllib.parse.urlencode({'ip':argv[-1]})
+    url = f'https://ifconfig.co/json?{params}'
+    req = urllib.request.Request(url, headers=HEADERS)
+    try:
+        with urllib.request.urlopen(req, context=SSL_CONTEXT) as page:
+            data = json.loads(page.read())
+    except Exception as e:
+        # catch exceptions and print the header to troubleshoot
+        error_dict = e.__dict__
+        print(error_dict)
+        print("Headers:", error_dict.get('headers'))
+        _exit(1)
+    
+    isp = data.get('asn_org', 'N/A')
+    city = data.get('city', '')
+    region = data.get('region_name', '')
+    country = data.get('country', '')
+    checked_ip = data.get('ip', argv[-1])
+    txt = f"""
+ISP: {isp}
+
+Location: {city} {region}, {country}
+
+IP Checked: {checked_ip}
+"""
+    print(txt)
+
+def get_my_ip():
+    url = f'https://ifconfig.co/'
+    req = urllib.request.Request(url, headers=HEADERS)
+    try:
+        with urllib.request.urlopen(req, context=SSL_CONTEXT) as page:
+            data = json.loads(page.read())
+            print("IP Address:", data.get('ip'))
+    except Exception as e:
+        # catch exceptions and print the header to troubleshoot
+        error_dict = e.__dict__
+        print(error_dict)
+        print("Headers:", error_dict.get('headers'))
+        _exit(1)
+
+def main():
+    if len(argv) == 1:
+        get_my_ip()
+    else:
+        check_ip()
+
+if __name__ == '__main__':
+    main()
