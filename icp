@@ -3,12 +3,11 @@
 """Convert .icns files to .png."""
 
 import os
-import sys
-import getpass
 import pathlib
 import argparse
 import plistlib
 import subprocess
+from sys import exit as _exit
 
 
 def print_warn(msg):
@@ -39,9 +38,20 @@ def app_icns_finder():
     icns_fn = plist.get('CFBundleIconFile', '')
     icns_fp = app_contents_fp / 'Resources' / icns_fn
     
+    if not icns_fp.suffix:
+        for ext in ['.icns', '.png']:
+            print(ext)
+            icns_fp = icns_fp.with_suffix(ext)
+            if icns_fp.exists():
+                break
+    
     if not icns_fp.is_file():
         print_warn("Couldn't find the icon file. .icns path please.")
-        icns_fp = input('> ')
+        try:
+            icns_fp = input('> ')
+        except KeyboardInterrupt:
+            print('')
+            _exit(0)
         
         if '\\ ' in icns_fp:
             icns_fp = icns_fp.replace('\\ ', ' ')
@@ -80,7 +90,7 @@ def validation_check(icns_fp):
     if validate_input(icns_fp) and validate_icns_file(icns_fp) and validate_output():
         return
     PARSER.print_help()
-    sys.exit(1)
+    _exit(1)
 
 def get_output_fp(icns_fp):
     """Return the file path to save the converted PNG to."""
@@ -104,7 +114,18 @@ def get_output_fp(icns_fp):
     
     if output_fp is None:
         print("Attempting to save to the Desktop.")
-        output_fp = f'/Users/{getpass.getuser()}/Desktop'
+        output_fp = pathlib.Path.home().joinpath('Desktop', f'{f_name}.png')
+    
+    if output_fp.exists():
+        idex = 0
+        while True:
+            new_fn = f'{output_fp.stem}.{idex}{output_fp.suffix}'
+            new_fp = output_fp.parent.joinpath(new_fn)
+            if new_fp.exists() is False:
+                output_fp = new_fp
+                break
+            idex += 1
+        print_warn(f"Output filepath already exists, using {output_fp}")
     
     return output_fp
 
